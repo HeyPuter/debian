@@ -258,3 +258,13 @@ db5.3     drop libdb5.3++-dev            | as above | as above
 qt6-declarative cut liblttng-ust-dev     | as qt6-base (its trace points follow qtbase's lttng feature, which is off) | Qt Quick's LTTng trace points
 libgcrypt20 autoconf enable_jent_support=no | random/jitterentropy-base.c refuses to build when optimised, and gexcc compiles at -O2 when the command line names no level (its Makefile only rewrites a named -O to -O0) | libgcrypt's CPU jitter entropy source; its RNG still seeds from getrandom
 db5.3     profile pkg.db5.3.notcl      | its install runs tcltk-depends, a tool tcl-dev carries, which the sysroot has and the build machine does not | the Berkeley DB Tcl binding (libdb5.3-tcl); nothing in the closure uses it
+# glibc's NSS modules: musl has no NSS (no <nss.h>, nothing loads them)
+systemd   meson nss-myhostname=false     | musl has no NSS to load the module | the NSS modules (gex's libc never loads one)
+systemd   meson nss-mymachines=disabled  | as above | as above
+systemd   meson nss-resolve=disabled     | as above | as above
+systemd   meson nss-systemd=false        | as above | as above
+systemd   drop libnss-myhostname         | as above | as above
+systemd   drop libnss-mymachines         | as above | as above
+systemd   drop libnss-resolve            | as above | as above
+systemd   drop libnss-systemd            | as above | as above
+krb5      cut libnss-myhostname          | its tests resolve the host name through it; systemd builds no NSS modules here | none (tests only)
