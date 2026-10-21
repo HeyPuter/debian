@@ -71,6 +71,8 @@ def stanzas(text):
     cur = {}
     last = None
     for line in text.splitlines():
+        if line.startswith('#'):  # a comment (debian/control has them)
+            continue
         if not line.strip():
             if cur:
                 yield cur

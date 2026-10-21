@@ -7,8 +7,17 @@
 #   SOURCE  drop BIN     the binary package BIN is not built (DH_OPTIONS -N)
 #   SOURCE  cmake VAR=V  CMake cache VAR forced to V, over what debian/rules
 #                        passes (gexcc's toolchain file, after -D)
+#   SOURCE  exclude X    debhelper leaves out files (and .install lines) whose
+#                        names contain X (DH_OPTIONS -X): what a cut stops
+#                        the build making
+#   SOURCE  meson OPT=V  meson option OPT set to V, over what debian/rules
+#                        passes (the env's meson wrapper, after the rules' -D)
+#   SOURCE  make VAR=V   make variable VAR=V over what the makefiles set
+#                        (MAKEFLAGS, so a command-line variable to every make)
 #   SOURCE  env VAR=V    VAR=V in the environment of SOURCE's build
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
+#   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
+#                        applies it); only where packaging cannot do it
 #
 # then `| why | what is lost`. `RUNTIME:` in what is lost marks something a
 # Plasma session uses at run time.
@@ -32,6 +41,7 @@ qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburc
 dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
 libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool
 harfbuzz  cut libchafa-dev                | chafa pulls tiff, libavif, aom, dav1d | hb-view's terminal (chafa) output
+harfbuzz  meson chafa=disabled             | debian/rules passes -Dauto_features=enabled | as above
 libtool   cut gfortran                    | a Fortran compiler for the build machine, used only by libtool's own Fortran tests | nothing in libltdl (libtool's Fortran support is configured on the build machine)
 xxhash    env CC=wasm32-linux-musl-gcc    | debian/rules' install step runs make without the CC dh_auto_build passed, and relinks xxhsum with `cc` | nothing
 # libbsd does not build: src/local-elf.h (for nlist(3), reading a program's
@@ -62,3 +72,24 @@ util-linux  profile stage1    | its full build needs libsystemd and libudev from
 pam         profile stage1    | its full build needs libaudit | PAM's audit logging
 krb5        profile stage1    | its full build needs openldap and cyrus-sasl2 | Kerberos' LDAP KDB backend and SASL
 libffi      cut dejagnu       | the test suite's runner, not guarded by nocheck | nothing (tests are not run)
+
+libgudev  cut libgirepository1.0-dev      | a target gobject-introspection build runs wasm32 programs during the build (cross-exe-wrapper) and pulls cairo and python3 | the GUdev GObject introspection data (gir1.2-gudev-1.0): GUdev from Python or GJS; nothing in a Plasma session
+libgudev  drop gir1.2-gudev-1.0           | it is the introspection data | as above
+libgudev  meson introspection=disabled    | debian/rules passes -Dintrospection=enabled | as above
+libgudev  exclude .gir                    | libgudev-1.0-dev lists the .gir | as above
+harfbuzz  cut libgirepository1.0-dev      | as libgudev: a target gobject-introspection | HarfBuzz's introspection data (gir1.2-harfbuzz-0.0); nothing in a Plasma session
+harfbuzz  cut gir1.2-freetype2-2.0-dev    | the introspection build's inputs | as above
+harfbuzz  cut gir1.2-gobject-2.0-dev      | as above | as above
+harfbuzz  drop gir1.2-harfbuzz-0.0        | it is the introspection data | as above
+harfbuzz  meson introspection=disabled    | debian/rules passes -Dauto_features=enabled | as above
+harfbuzz  exclude .gir                    | libharfbuzz-dev lists the .gir | as above
+harfbuzz  cut libcairo2-dev               | cairo is only for hb-view and libharfbuzz-cairo; it pulls ghostscript and more | libharfbuzz-cairo0 (HarfBuzz drawing through cairo); Qt does not use it
+harfbuzz  drop libharfbuzz-cairo0         | it is the cairo half | as above
+harfbuzz  meson cairo=disabled            | debian/rules passes -Dauto_features=enabled | as above
+
+# Source patches: two, both where the wasm32 port itself is missing
+libffi    patch 0001-wasm32-backend.patch      | libffi's wasm32 backend is emscripten's (calls through JavaScript); this is gexcc's plain-C one (debian/libffi-wasm32) | nothing; without it there is no libffi (wayland, glib)
+glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function whose address is taken becomes a GOT.func import gex's loader cannot satisfy | nothing (LeakSanitizer hooks); the loader taking weak imports as null would replace it
+libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)
+icu       make GENCCODE_ASSEMBLY=        | configure picks genccode's `-a gcc` for any *-linux* gcc: ELF assembly (.type x,%object), which the wasm assembler does not take; without it pkgdata writes the data as C | nothing (the same data, compiled from C)
+openssl   env OPENSSL_LOCAL_CONFIG_DIR=@CROSS@/openssl | debian/rules configures the target debian-$(DEB_HOST_ARCH), which Debian's 20-debian.conf has only for its own architectures; openssl/50-wasm32.conf adds debian-musl-linux-wasm32 (linux-generic32, no assembly) | nothing (generic C instead of assembly: slower crypto)

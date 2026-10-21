@@ -14,7 +14,7 @@ LEVEL=${ZSTD_LEVEL:-12}
 mkdir -p "$OUT"
 cp -a "$PAGE/." "$OUT/"
 cp "$HERE/page/index.html" "$OUT/index.html"
-printf '{"tar": "kde.tar", "env": [], "switches": {}}\n' > "$OUT/site.json"
+printf '{"tar": ["kde.tar"], "env": [], "switches": {}}\n' > "$OUT/site.json"
 # the tree, and the runtime's large files, compressed
 zstd -q -f -T0 "-$LEVEL" --long=27 "$TAR" -o "$OUT/kde.tar.zst"
 packed=(kde.tar)

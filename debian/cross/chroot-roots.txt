@@ -80,3 +80,13 @@ x11proto-xf86vidmode-dev xauth xbitmaps xcb-proto xdg-user-dirs xfonts-utils xfs
 xml-core xmlto xmltoman xorg-sgml-doctools xsltproc xtrans-dev xutils-dev xz-utils yasm zlib1g-dev 
 # documentation tools some debian/rules require whatever the profile (libxkbcommon: -Denable-docs=true)
 doxygen graphviz
+w3m
+lynx
+tcl
+nasm
+check
+valgrind-if-available
+dbus-broker
+cron
+udev
+javahelper

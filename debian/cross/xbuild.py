@@ -50,18 +50,19 @@ TOOLCHAIN = {'libc6-dev', 'libc-dev', 'linux-libc-dev', 'pkg-config', 'pkgconf',
 
 
 def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
-    """cuts.txt: {source: {'cut': set, 'drop': set, 'cmake': [(var, value)]}}."""
+    """cuts.txt: {source: {'cut': set, 'drop': set, 'cmake': [(var, value)],
+    'meson': [option=value], 'env': [VAR=value], 'profile': set}}."""
     out = {}
     for line in open(path):
         line = line.split('|')[0].strip()
         if not line or line.startswith('#'):
             continue
         src, kind, what = line.split()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'env': [], 'profile': set()})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': []})
         if kind == 'profile':
             c['profile'].add(what)
-        elif kind == 'env':
-            c['env'].append(what)
+        elif kind in ('env', 'meson', 'make'):
+            c[kind].append(what)
         elif kind == 'cmake':
             c['cmake'].append(tuple(what.split('=', 1)))
         else:
@@ -183,14 +184,16 @@ def leniency(log):
     """What gexcc let through in a build (its log): calls to undeclared C
     library functions (a warning, as on glibc), calls to undeclared
     functions of any other kind (implicit int), and functions linked to a
-    trapping stub because they were declared with the wrong type. Each
-    symbol once."""
+    trapping stub because they were declared with the wrong type, and the
+    sources whose `.symver` aliases were left out. Each name once."""
     t = open(log, errors='replace').read()
     lib = sorted(set(re.findall(r"call to undeclared library function '([^']+)'", t)))
     other = sorted(set(re.findall(r"call to undeclared function '([^']+)'", t)))
     stub = sorted(set(re.findall(r'gexcc: warning: (\S+) is declared .* calls to it trap', t)))
+    symver = sorted(set(re.findall(r'gexcc: (\S+): \d+ \.symver directive', t)))
     part = lambda what, xs: f'{what} {len(xs)}' + (f' [{" ".join(xs[:12])}{" ..." if len(xs) > 12 else ""}]' if xs else '')
-    return '; '.join([part('undeclared-libc', lib), part('undeclared-other', other), part('trap-stubs', stub)])
+    return '; '.join([part('undeclared-libc', lib), part('undeclared-other', other), part('trap-stubs', stub),
+                      part('symver-dropped', symver)])
 
 
 def clause_names(field):
@@ -236,9 +239,10 @@ class Builder:
         todo = list(deps)
         while todo:
             dep, q = todo.pop()
-            if dep in seen or dep in TOOLCHAIN:
+            # DEP and DEP:native are two packages (the target's and the build machine's)
+            if (dep, q == 'native') in seen or dep in TOOLCHAIN:
                 continue
-            seen.add(dep)
+            seen.add((dep, q == 'native'))
             p = self.debian.get(dep)
             build_side = q in ('native', 'any') or not target_lib(dep) or (
                 p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign'))
@@ -249,7 +253,10 @@ class Builder:
                 todo += [(n, None) for n in clause_names(ctl)]
                 continue
             if build_side or (p is None and dep in self.chroot_has):
-                if dep not in self.chroot_has and q is not None:
+                # an Arch: all -dev (headers, or a transitional name) goes
+                # to the sysroot only; anything else build-side runs there
+                sysroot_only = p is not None and p.get('Architecture') == 'all' and q != 'native' and target_lib(dep)
+                if dep not in self.chroot_has and q is not None and not sysroot_only:
                     lacks.append(dep)
                 if p is not None and p.get('Architecture') == 'all' and q != 'native':
                     debs.append(debfetch.fetch(self.cache, p))
@@ -290,10 +297,18 @@ class Builder:
                f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
                'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
         c = CUTS.get(name)
-        if c and c['drop']:
-            env += ' DH_OPTIONS="' + ' '.join(f'-N{b}' for b in sorted(c['drop'])) + '"'
+        # make variables over what debian/rules sets (a command-line variable
+        # beats the makefile's, `export` or not): symbols files are checked
+        # at level 0 even where the rules export a stricter level, since a
+        # wasm module has no symbol versions and every versioned list differs
+        makevars = ['DPKG_GENSYMBOLS_CHECK_LEVEL=0'] + (c['make'] if c else [])
+        env += " MAKEFLAGS='" + ' '.join(makevars) + "'"
+        if c and (c['drop'] or c['exclude']):
+            env += ' DH_OPTIONS="' + ' '.join([f'-N{b}' for b in sorted(c['drop'])] +
+                                             [f'-X{x}' for x in sorted(c['exclude'])]) + '"'
         if c:
-            env += ''.join(f' {e}' for e in c['env'])
+            # @CROSS@: this directory (in-chroot.sh binds it read-only)
+            env += ''.join(f' {e.replace("@CROSS@", HERE)}' for e in c['env'])
         if c and c['cmake']:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
@@ -302,6 +317,12 @@ class Builder:
                     kind = 'BOOL' if val.upper() in ('ON', 'OFF', 'TRUE', 'FALSE') else 'STRING'
                     f.write(f'set({var} {val} CACHE {kind} "cuts.txt" FORCE)\n')
             env += f' GEXCC_CMAKE_INIT={init}'
+        if c and c['meson']:
+            init = os.path.join(self.work, 'meson-init', f'{name}.txt')
+            os.makedirs(os.path.dirname(init), exist_ok=True)
+            with open(init, 'w') as f:
+                f.write(''.join(f'-D{o}\n' for o in c['meson']))
+            env += f' GEXCC_MESON_INIT={init}'
         cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,

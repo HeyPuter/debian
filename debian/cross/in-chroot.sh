@@ -11,6 +11,8 @@
 # Environment: GEXC (the gexc wasm32 programs run under; default the
 # prefix's runner), LLVM (default /usr/lib/llvm-22).
 set -eu
+# this directory, read-only inside: files cuts.txt names (@CROSS@)
+HERE=$(cd "$(dirname "$0")" && pwd)
 C=$(realpath "${1:?CHROOT}"); P=$(realpath "${2:?GEXCC_PREFIX}"); E=$(realpath "${3:?ENVDIR}")
 shift 3
 binds=() cwd=/
@@ -62,7 +64,7 @@ done
 exec bwrap --unshare-user --uid 0 --gid 0 --unshare-ipc --unshare-pid --die-with-parent \
     --bind "$C" / --dev /dev --proc /proc --tmpfs /tmp \
     --ro-bind "$LLVM" "$LLVM" --tmpfs /usr/local/bin "${tools[@]}" \
-    --bind "$P" "$P" --bind "$E" "$E" "${extra[@]}" "${binds[@]}" \
+    --bind "$P" "$P" --bind "$E" "$E" --ro-bind "$HERE" "$HERE" "${extra[@]}" "${binds[@]}" \
     --bind "$slots" "$slots" --setenv GEXCC_SLOT_DIR "$slots" \
     --setenv HOME /root --setenv LANG C.UTF-8 --setenv LC_ALL C.UTF-8 --unsetenv LANGUAGE --chdir "$cwd" \
     /bin/bash -c '. "$0"/env.sh; exec "$@"' "$E" "$@"

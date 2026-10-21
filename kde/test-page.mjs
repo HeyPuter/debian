@@ -61,9 +61,14 @@ let ws = null;
 for (let i = 0; i < 100 && !ws; i++) { ws = await browserWsUrl(port); if (!ws) await new Promise((r) => setTimeout(r, 100)); }
 if (!ws) throw new Error('no browser');
 const b = await Cdp.connect(ws);
-const { targetInfos } = await b.send('Target.getTargets');
-const page = targetInfos.find((t) => t.type === 'page');
-const { sessionId: s } = await b.send('Target.attachToTarget', { targetId: page.targetId, flatten: true });
+// the first tab can appear some time after the browser's endpoint does
+let page = null;
+for (let i = 0; i < 50 && !page; i++) {
+  page = (await b.send('Target.getTargets')).targetInfos.find((t) => t.type === 'page');
+  if (!page) await new Promise((r) => setTimeout(r, 200));
+}
+const targetId = page ? page.targetId : (await b.send('Target.createTarget', { url: 'about:blank' })).targetId;
+const { sessionId: s } = await b.send('Target.attachToTarget', { targetId, flatten: true });
 // every Worker's console too (each guest process runs in one)
 await b.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, s);
 b.on('Target.attachedToTarget', async (p) => { try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });

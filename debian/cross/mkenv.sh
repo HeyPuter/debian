@@ -68,11 +68,37 @@ m = m.replace('return if not is_so_or_exec_elf_file($_);',
               'return if not is_so_or_exec_elf_file($_) and not is_wasm_side_module($_);', 1)
 open(mk, 'w').write(m)
 PY
+# dpkg-gensymbols and dpkg-shlibdeps likewise: a side module is an object,
+# all of one format (its symbols come from gexcc's objdump)
+python3 -I - "$E/host/usr/share/perl5/Dpkg/Shlibs/Objdump.pm" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if 'WASM:32' not in s:
+    s = s.replace('''    return unless $elf{magic} eq "\\x7fELF";''',
+                  '''    return $format{$file} = 'WASM:32:l:wasm32:0' if $elf{magic} eq "\\0asm";
+    return unless $elf{magic} eq "\\x7fELF";''', 1)
+    s = s.replace('''$result = 1 if ($header =~ /^\\177ELF$/);''',
+                  '''$result = 1 if ($header =~ /^\\177ELF$/ or $header eq "\\0asm");''', 1)
+    assert s.count('WASM:32') == 1 and s.count('"\\0asm"') == 2, 'Objdump.pm changed'
+    open(p, 'w').write(s)
+PY
 for t in gcc cc g++ c++ cpp clang clang++ ar ranlib nm objdump strings size readelf objcopy strip ld pkg-config; do
   src=$P/bin/$T-$t
   case $t in cpp) src=$P/bin/$T-gcc ;; ld) src=$P/bin/$T-ld ;; esac
   [ -e "$src" ] && ln -sfn "$src" "$E/bin/$G-$t"
 done
+# meson, with cuts.txt's options for the source being built after the
+# package's own (meson takes the last -D of an option)
+cat > "$E/bin/meson" <<'SH'
+#!/bin/sh
+if [ "${1:-}" = setup ] && [ -n "${GEXCC_MESON_INIT:-}" ]; then
+    shift
+    set -- setup "$@" $(cat "$GEXCC_MESON_INIT")
+fi
+exec /usr/bin/meson "$@"
+SH
+chmod +x "$E/bin/meson"
 cat > "$E/env.sh" <<ENV
 # . this file: Debian's build tools, cross for musl-linux-wasm32 through gexcc
 export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH
