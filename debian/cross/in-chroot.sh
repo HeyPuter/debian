@@ -52,6 +52,14 @@ for g in $(printf '%s\n' "${extra[@]}" | grep '^/' | sort -u); do
         [ -e "$C$l" ] || [ -e "$C/usr$l" ] || extra+=(--ro-bind "$(realpath "$l")" "/usr$l")
     done
 done
+# the environment's architecture tables (wasm32 in the CPU table) at dpkg's
+# own path as well: python-debian reads /usr/share/dpkg whatever DPKG_DATADIR
+# says, and debputy, matching each package's Architecture against an
+# architecture it does not know, built none of the linux-any ones
+# (util-linux's libmount-dev)
+for t in cputable ostable abitable tupletable; do
+    [ -e "$E/dpkg/$t" ] && extra+=(--ro-bind "$E/dpkg/$t" "/usr/share/dpkg/$t")
+done
 # gexcc-exec's machine-wide slots (at most GEXCC_SLOTS gexcs at once): the
 # host's slot files, so builds in here count against the same limit
 slots=${GEXCC_SLOT_DIR:-${XDG_RUNTIME_DIR:-/tmp}/gexcc-slots-$(id -u)}
