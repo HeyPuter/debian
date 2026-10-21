@@ -21,7 +21,7 @@ repository for arm64 only, ours (Origin gex) as a file: repository at
 /var/lib/gex-apt for musl-linux-wasm32, pinned so that apt never replaces
 one of ours with Debian's (docs/gexcc.md §6.1a).
 """
-import argparse, glob, gzip, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile
+import argparse, glob, gzip, hashlib, io, lzma, os, re, shutil, subprocess, sys, tarfile, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -65,6 +65,44 @@ EXCLUDE = ['/usr/share/doc/*', '/usr/share/man/*', '/usr/share/info/*', '/usr/sh
 INCLUDE = ['/usr/share/doc/*/copyright', '/usr/lib/*/gconv/UTF-*.so', '/usr/lib/*/gconv/UNICODE.so',
            '/usr/lib/*/gconv/ISO8859-15.so', '/usr/lib/*/gconv/CP1252.so', '/usr/lib/*/gconv/libGB.so',
            '/usr/lib/*/gconv/libJIS.so', '/usr/lib/*/gconv/EUC-JP.so', '/usr/lib/*/gconv/SJIS.so']
+
+
+def alternatives(postinst, alts):
+    """The `update-alternatives --install` calls of a maintainer script, which
+    is not run: {name: (priority, link, path, [(link, name, path)...])},
+    the highest priority's kept. Calls built from shell variables are skipped."""
+    if not postinst:
+        return
+    text = re.sub(r'\\\n', ' ', postinst)
+    # plain assignments (`ver=1.17`, `prio=1170`) the calls use
+    for k, v in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=["\']?([^\s"\'$`;]+)["\']?\s*$', text, re.M):
+        text = re.sub(r'\$\{?' + k + r'\b\}?', v, text)
+    for m in re.finditer(r'update-alternatives\b[^\n;|&]*?--install\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)([^\n;|&]*)', text):
+        link, name, path, prio, rest = m.groups()
+        slaves = re.findall(r'--slave\s+(\S+)\s+(\S+)\s+(\S+)', rest)
+        if '$' in link + name + path + prio:
+            continue
+        slaves = [x for x in slaves if '$' not in ''.join(x)]
+        if name not in alts or int(prio) > alts[name][0]:
+            alts[name] = (int(prio), link, path, slaves)
+
+
+def link_alternatives(root, alts):
+    """What update-alternatives would have made: LINK -> /etc/alternatives/NAME
+    -> PATH, for each name whose path is in the tree, slaves too."""
+    d = os.path.join(root, 'etc/alternatives')
+    os.makedirs(d, exist_ok=True)
+    for name, (_, link, path, slaves) in sorted(alts.items()):
+        for ln, nm, pt in [(link, name, path)] + slaves:
+            if not os.path.lexists(os.path.join(root, real_rel(root, pt.lstrip('/')))):
+                continue
+            a = os.path.join(d, nm)
+            if not os.path.lexists(a):
+                os.symlink(pt, a)
+            ldir = os.path.join(root, real_rel(root, os.path.dirname(ln).lstrip('/')))
+            lp = os.path.join(ldir, os.path.basename(ln))
+            if os.path.isdir(ldir) and not os.path.lexists(lp):
+                os.symlink('/etc/alternatives/' + nm, lp)
 
 
 def excluded(path):
@@ -404,9 +442,11 @@ def main():
     # the multiarch database layout (`pkg:arch.*` for Multi-Arch: same)
     open(os.path.join(info, 'format'), 'w').write('1\n')
     status = []
+    alts = {}
     for deb, idx in native + image_ours:
         ctl = control(deb)
         paths = unpack(deb, root)
+        alternatives(control_member(deb, 'postinst'), alts)
         stem = info_name(ctl)
         open(os.path.join(info, f'{stem}.list'), 'w').write('\n'.join(paths) + '\n')
         sums = control_member(deb, 'md5sums')
@@ -422,6 +462,7 @@ def main():
                     cmd5.append((p, md5(f)))
         status.append(status_stanza(ctl, cmd5))
     open(os.path.join(root, 'var/lib/dpkg/status'), 'w').write('\n'.join(status))
+    link_alternatives(root, alts)
     configure(root, ours, native, pkgs)
     write_repo(root, ours)
 

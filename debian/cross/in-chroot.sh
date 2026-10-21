@@ -59,5 +59,5 @@ exec bwrap --unshare-user --uid 0 --gid 0 --unshare-ipc --unshare-pid --die-with
     --ro-bind "$LLVM" "$LLVM" --tmpfs /usr/local/bin "${tools[@]}" \
     --bind "$P" "$P" --bind "$E" "$E" "${extra[@]}" "${binds[@]}" \
     --bind "$slots" "$slots" --setenv GEXCC_SLOT_DIR "$slots" \
-    --setenv HOME /root --setenv LANG C.UTF-8 --chdir "$cwd" \
+    --setenv HOME /root --setenv LANG C.UTF-8 --setenv LC_ALL C.UTF-8 --unsetenv LANGUAGE --chdir "$cwd" \
     /bin/bash -c '. "$0"/env.sh; exec "$@"' "$E" "$@"

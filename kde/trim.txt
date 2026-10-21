@@ -1,0 +1,35 @@
+# What the browser's KDE tree leaves out of scratch's arm64 tree (kde/pack.py):
+# one glob per line, matched against the path in the tree; `+GLOB` keeps a
+# path an earlier line dropped. The session draws with QPainter and software
+# QtQuick, so Mesa (and LLVM under it) is never loaded.
+usr/lib/aarch64-linux-gnu/libLLVM*
+usr/lib/aarch64-linux-gnu/libgallium*
+usr/lib/aarch64-linux-gnu/libz3.so*
+usr/lib/aarch64-linux-gnu/dri/*
+usr/lib/aarch64-linux-gnu/gbm/*
+usr/lib/aarch64-linux-gnu/vdpau/*
+usr/lib/aarch64-linux-gnu/libEGL_mesa*
+usr/lib/aarch64-linux-gnu/libGLX_mesa*
+usr/lib/aarch64-linux-gnu/libvulkan_*
+usr/share/vulkan/*
+# gcc (cc1 is too large to translate; xrdb then merges without cpp)
+usr/libexec/gcc/*
+usr/bin/cpp*
+usr/bin/aarch64-linux-gnu-cpp*
+usr/bin/gdb*
+# documentation and translations
+usr/share/doc/*
++usr/share/doc/*/copyright
+usr/share/man/*
+usr/share/info/*
+usr/share/help/*
+usr/share/locale/*
+usr/share/gtk-doc/*
+# the wallpaper at the sizes a browser window has, not all twenty
+usr/share/wallpapers/Next/contents/images/*
+usr/share/wallpapers/Next/contents/images_dark/*
++usr/share/wallpapers/Next/contents/images/1920x1080.png
++usr/share/wallpapers/Next/contents/images/2560x1440.png
++usr/share/wallpapers/Next/contents/images/1280x800.png
++usr/share/wallpapers/Next/contents/images/1366x768.png
++usr/share/wallpapers/Next/contents/images_dark/1920x1080.png
