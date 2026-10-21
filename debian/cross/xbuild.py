@@ -154,10 +154,14 @@ def into_sysroot(deb, sysroot, done, chroot=None):
     done.add(deb)
     with tempfile.TemporaryDirectory() as t:
         subprocess.run(['dpkg-deb', '-x', deb, t], check=True)
-        # (and usr/share's data a pkg-config file points at in the sysroot:
-        # xcb-proto's XML, xorg-sgml-doctools' stylesheets)
-        for sub in ('usr/include', 'usr/lib', 'usr/share/pkgconfig', 'usr/share/cmake', 'usr/share/aclocal',
-                    'usr/share/ECM', 'usr/lib/cmake', 'usr/share/xcb', 'usr/share/sgml', 'usr/share/xml'):
+        # (and usr/share's data a pkg-config file or a CMake package points
+        # at in the sysroot: xcb-proto's XML, wayland-protocols' XML,
+        # xorg-sgml-doctools' stylesheets; everything but documentation)
+        share = os.path.join(t, 'usr/share')
+        subs = ['usr/include', 'usr/lib'] + [
+            'usr/share/' + d for d in (sorted(os.listdir(share)) if os.path.isdir(share) else [])
+            if d not in ('doc', 'man', 'info', 'locale', 'lintian', 'bug', 'doc-base', 'help', 'gtk-doc')]
+        for sub in subs:
             s = os.path.join(t, sub)
             if os.path.isdir(s):
                 os.makedirs(os.path.join(sysroot, sub), exist_ok=True)
@@ -251,8 +255,15 @@ class Builder:
             if dep in self.ours and not build_side:
                 deb = self.ours[dep]
                 debs.append(deb)
-                ctl = subprocess.run(['dpkg-deb', '-f', deb, 'Depends'], capture_output=True, text=True).stdout
-                todo += [(n, None) for n in clause_names(ctl)]
+                f = dict(l.split(': ', 1) for l in subprocess.run(['dpkg-deb', '-f', deb, 'Package', 'Source', 'Depends'],
+                                                                  capture_output=True, text=True).stdout.splitlines() if ': ' in l)
+                # a dependency its source cut (cuts.txt) was never built
+                # against, or a sibling it dropped: the -dev package still
+                # names them (dpkg-buildpackage -d leaves debian/control as
+                # it is)
+                c = CUTS.get((f.get('Source') or f.get('Package', '')).split(' ')[0], {})
+                cut = c.get('cut', set()) | c.get('drop', set())
+                todo += [(n, None) for n in clause_names(f.get('Depends', '')) if n not in cut]
                 continue
             if build_side or (p is None and dep in self.chroot_has):
                 # an Arch: all -dev (headers, or a transitional name) goes

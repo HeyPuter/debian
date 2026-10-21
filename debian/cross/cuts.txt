@@ -88,7 +88,7 @@ harfbuzz  drop libharfbuzz-cairo0         | it is the cairo half | as above
 harfbuzz  meson cairo=disabled            | debian/rules passes -Dauto_features=enabled | as above
 
 # Source patches: two, both where the wasm32 port itself is missing
-libffi    patch 0001-wasm32-backend.patch      | libffi's wasm32 backend is emscripten's (calls through JavaScript); this is gexcc's plain-C one (debian/libffi-wasm32) | nothing; without it there is no libffi (wayland, glib)
+libffi    patch 0001-wasm32-backend.patch      | a missing port: libffi's wasm32 backend is emscripten's (calls through JavaScript); the patch puts in gexcc's plain-C backend, gex-debian's debian/libffi-wasm32 (ffi.c, and tramp.inc from its gen.py), from gex's tools/gexcc/debian | nothing; without it there is no libffi (wayland, glib)
 glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function whose address is taken becomes a GOT.func import gex's loader cannot satisfy | nothing (LeakSanitizer hooks); the loader taking weak imports as null would replace it
 libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)
 icu       make GENCCODE_ASSEMBLY=        | configure picks genccode's `-a gcc` for any *-linux* gcc: ELF assembly (.type x,%object), which the wasm assembler does not take; without it pkgdata writes the data as C | nothing (the same data, compiled from C)
@@ -164,8 +164,6 @@ libcanberra drop libcanberra-gtk-common-dev | GTK3 | as above
 libcanberra drop gnome-session-canberra   | GTK3 | as above
 libcanberra cut libtdb-dev                | tdb is built by the samba source in trixie | the sound lookup cache (each event sound is looked up again)
 breeze    cut kirigami2-dev               | the Qt 5 half's (Kirigami 2 for the Qt 5 style's config) | as breeze above
-kf6-ktextwidgets cut qt6-speech-dev       | Qt TextToSpeech pulls speech-dispatcher, espeak-ng and PulseAudio | "Speak Text" in KDE text fields' context menu
-kf6-ktextwidgets cut qt6-multimedia-dev   | only with TextToSpeech; Qt Multimedia pulls ffmpeg, GStreamer, PipeWire, PulseAudio | as above
 kf6-kfilemetadata cut libavcodec-dev      | ffmpeg (and through it SDL, PipeWire, x264, vlc) | Baloo's audio/video metadata (duration, codec) for media files
 kf6-kfilemetadata cut libavdevice-dev     | as above | as above
 kf6-kfilemetadata cut libavformat-dev     | as above | as above
@@ -180,3 +178,60 @@ plasma-workspace cut libkf6userfeedback-dev | KUserFeedback pulls Qt Charts and 
 kwin      cut libpipewire-0.3-dev         | as plasma-workspace | RUNTIME: KWin's screencast plugin (Wayland screen sharing; the X11 session does not use it)
 kf6-kwallet cut libgpgme-dev              | gpgme1.0's rules build its Qt 5 and Python bindings with no knob (--enable-languages="python cpp qt5 qt6"), so gpgme pulls Qt 5 and CPython | GPG-encrypted wallets in KWallet (Blowfish wallets remain)
 kf6-kwallet cut libgpgmepp-dev            | as above | as above
+phonon    patch 0001-rules-qt6-only.patch    | debian/rules only (packaging, approved): it deletes two Qt 5 headers with rm -v and makes the Qt 5 library's shlibs, so the Qt 6-only build fails without it | nothing beyond the Qt 5 half below
+phonon    cmake PHONON_BUILD_QT5=OFF       | debian/rules builds Qt 5 and Qt 6 in one tree (the option is ON by default); plasma-workspace needs Phonon4Qt6 | Phonon for Qt 5 apps
+phonon    cut qtbase5-dev                  | the Qt 5 half's | as above
+phonon    cut qttools5-dev                 | the Qt 5 half's | as above
+phonon    cut libpulse-dev                 | PulseAudio (as libcanberra) | RUNTIME: Phonon's PulseAudio integration (no sound server in the page)
+phonon    drop libphonon4qt5-4t64          | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop libphonon4qt5-dev           | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop libphonon4qt5experimental-dev | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop libphonon4qt5experimental4t64 | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop phonon4qt5                  | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop phonon4qt5-backend-null     | a Qt 5 package | Phonon for Qt 5 apps
+phonon    drop phonon4qt5settings          | a Qt 5 package | Phonon for Qt 5 apps
+qt6-multimedia cut libavcodec-dev         | ffmpeg pulls SDL, PulseAudio, PipeWire, x264, vlc; Qt only builds its ffmpeg backend with PulseAudio on Linux | RUNTIME: Qt Multimedia has no media backend (no audio/video playback; ALSA output only): Konsole's bell sound, KNotifyConfig's sound preview, Prison's camera scanner
+qt6-multimedia cut libavdevice-dev        | as above | as above
+qt6-multimedia cut libavfilter-dev        | as above | as above
+qt6-multimedia cut libavformat-dev        | as above | as above
+qt6-multimedia cut libavutil-dev          | as above | as above
+qt6-multimedia cut libswscale-dev         | as above | as above
+qt6-multimedia cut libpulse-dev           | PulseAudio (as libcanberra) | as above
+qt6-multimedia cut libpipewire-0.3-dev    | PipeWire (as plasma-workspace) | as above
+qt6-multimedia cut libgstreamer1.0-dev    | GStreamer pulls gobject-introspection and CPython | as above
+qt6-multimedia cut libgstreamer-plugins-base1.0-dev | as above | as above
+qt6-multimedia exclude libffmpegmediaplugin | the ffmpeg backend is not built | as above
+qt6-speech cut flite1-dev                 | an engine; flite pulls PulseAudio | RUNTIME: Qt TextToSpeech has no engine ("Speak Text" in Kate and KDE text fields does nothing)
+qt6-speech cut libspeechd-dev             | speech-dispatcher pulls espeak-ng, PulseAudio, PipeWire | as above
+qt6-speech drop qt6-speech-flite-plugin   | the flite engine | as above
+qt6-speech drop qt6-speech-speechd-plugin | the speech-dispatcher engine | as above
+plasma-desktop cut libsdl2-dev            | SDL pulls PulseAudio, PipeWire, ffmpeg | the game controller KCM
+plasma-desktop cut xserver-xorg-dev       | the X server's SDK headers, for the Mouse and Touchpad KCMs' X11 backends (they talk to xf86-input-libinput's properties) | mouse and touchpad settings under X11 (the KCMs build, with no X11 backend)
+plasma-desktop cut xserver-xorg-input-libinput-dev | as above | as above
+plasma-desktop cmake BUILD_KCM_MOUSE_X11=OFF | without the two above the KCM's CMake stops unless the backend is off | as above
+plasma-desktop cmake BUILD_KCM_TOUCHPAD_X11=OFF | as above | as above
+plasma-desktop cut libibus-1.0-dev        | IBus pulls gtk3, dconf, python3-gi | the input method panel's IBus backend (no input methods in the page)
+plasma-desktop cut libscim-dev            | SCIM pulls gtk3 | the input method panel's SCIM backend
+plasma-desktop cut libaccounts-qt6-dev    | as libkaccounts6-dev (signond, libaccounts-glib) | as libkaccounts6-dev
+plasma-desktop cut signon-plugin-oauth2-dev | as above | as above
+plasma-desktop cut signon-plugins-dev     | as above | as above
+kf6-ktexteditor cut libcups2-dev          | not used by its CMake (printing is Qt's, and qt6-base is built without CUPS); cups pulls avahi and gtk3 | none
+kf6-kfilemetadata cut libpoppler-qt6-dev  | Poppler's Debian build also builds its Qt 5 half and pulls gpgme, nss, lcms | Baloo's PDF text and metadata extractor
+kf6-kfilemetadata cut libappimage-dev     | libappimage pulls squashfuse, libarchive's whole chain, librsvg, cairo | metadata for AppImage files
+kf6-frameworkintegration cut libappstreamqt-dev | appstream's Debian build also builds its Qt 5 half, with gir and the compose tools | the appstream: URL handler (opening Discover links); no Discover in the page anyway
+kf6-frameworkintegration exclude appstreamhandler | not built without AppStreamQt | as above
+plasma-workspace cut libappstreamqt-dev   | as kf6-frameworkintegration | the KRunner/Kickoff "install this application" results and the "uninstall" action
+zxing-cpp cut pybind11-dev               | pybind11-dev depends on python3-dev, so CPython (as python3-dev above) | as above
+qrencode cut libsdl2-dev                 | SDL is for the test suite's QR code viewer (--with-tests builds it when SDL is there); SDL pulls PulseAudio, PipeWire, ibus, fcitx | none (the viewer is not packaged)
+libsecret cut libgirepository1.0-dev     | as libgudev: a target gobject-introspection (which pulls CPython, cairo, and through them avahi and gtk3) | libsecret's introspection data and Vala bindings (gir1.2-secret-1): libsecret from Python, GJS or Vala; nothing in a Plasma session
+libsecret drop gir1.2-secret-1           | it is the introspection data | as above
+libsecret meson introspection=false      | debian/rules passes -Dauto_features=enabled and the option defaults on | as above
+libsecret meson vapi=false               | the Vala bindings are generated from the .gir | as above
+libsecret meson gtk_doc=false            | gi-docgen documents the .gir | the HTML reference (libsecret-1-dev's usr/share/doc/libsecret-1-dev/html)
+libsecret exclude .gir                   | libsecret-1-dev lists the .gir | as above
+libsecret exclude .typelib               | gir1.2-secret-1 lists the typelib | as above
+libsecret exclude vala/vapi              | libsecret-1-dev lists the Vala bindings | as above
+libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the HTML reference | as above
+audit profile pkg.audit.noldap           | audit's LDAP is only for its z/OS remote plugin; openldap and cyrus-sasl2 need each other | audispd's z/OS remote plugin
+cyrus-sasl2 profile pkg.cyrus-sasl2.noldap | openldap and cyrus-sasl2 need each other; Debian's profile breaks the cycle on this side | SASL's ldapdb auxprop plugin (SASL accounts kept in LDAP)
+cyrus-sasl2 profile pkg.cyrus-sasl2.nosql | the SQL auxprop plugin pulls MariaDB, PostgreSQL and SQLite clients | SASL's SQL auxprop plugin

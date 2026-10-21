@@ -1,0 +1,21 @@
+debian/rules only (packaging, no source): with the Qt 5 half dropped
+(cuts.txt: PHONON_BUILD_QT5=OFF and its packages), the two Qt 5 headers
+the rules delete are not there, and the Qt 5 library has no shlibs to make.
+
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,12 +12,11 @@
+ RECOMMENDED_PHONON4_QT6_BACKEND := phonon4qt6-backend-vlc
+ 
+ execute_after_dh_auto_install:
+-	rm -v debian/tmp/usr/include/phonon4qt5/KDE/Phonon/AudioDevice
+-	rm -v debian/tmp/usr/include/phonon4qt5/KDE/Phonon/AudioDeviceEnumerator
++	rm -fv debian/tmp/usr/include/phonon4qt5/KDE/Phonon/AudioDevice
++	rm -fv debian/tmp/usr/include/phonon4qt5/KDE/Phonon/AudioDeviceEnumerator
+ 
+ # shlibs is needed for library-packages.mk (strict shlibs) to work
+ override_dh_makeshlibs:
+-	dh_makeshlibs -plibphonon4qt5-4t64 -V'libphonon4qt5-4 (>= $(DEB_VERSION_EPOCH_UPSTREAM)), phonon4qt5'
+ 	dh_makeshlibs -plibphonon4qt6-4t64 -V'libphonon4qt6-4 (>= $(DEB_VERSION_EPOCH_UPSTREAM)), phonon4qt6'
+ 	dh_makeshlibs -V --remaining-packages
+ 
