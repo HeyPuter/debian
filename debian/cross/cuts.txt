@@ -256,3 +256,4 @@ db5.3     autoconf enable_cxx=no         | its C++ API's sources include db's ow
 db5.3     drop libdb5.3++t64             | as above | as above
 db5.3     drop libdb5.3++-dev            | as above | as above
 qt6-declarative cut liblttng-ust-dev     | as qt6-base (its trace points follow qtbase's lttng feature, which is off) | Qt Quick's LTTng trace points
+libgcrypt20 autoconf enable_jent_support=no | random/jitterentropy-base.c refuses to build when optimised, and gexcc compiles at -O2 when the command line names no level (its Makefile only rewrites a named -O to -O0) | libgcrypt's CPU jitter entropy source; its RNG still seeds from getrandom

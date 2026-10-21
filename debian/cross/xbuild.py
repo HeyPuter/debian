@@ -357,6 +357,12 @@ class Builder:
             with open(site, 'w') as f:
                 f.write(f'. {os.path.join(self.a.prefix, "share/gexcc/config.site")}\n' + ''.join(f'{v}\n' for v in c['autoconf']))
             env += f' CONFIG_SITE={site}'
+        # a tree kept from an earlier attempt: debhelper's stamp says it is
+        # built, and a clean target that does not run dh_clean (db5.3's)
+        # leaves the stamp and removes the build
+        stamp = os.path.join(srcdir, 'debian', 'debhelper-build-stamp')
+        if os.path.exists(stamp):
+            os.unlink(stamp)
         cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
