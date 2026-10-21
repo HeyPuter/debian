@@ -48,6 +48,11 @@ if [ -n "${GEX_KDE_STOP_AFTER:-}" ]; then
     end=$(( $(date +%s) + GEX_KDE_STOP_AFTER ))
     (while [ "$(date +%s)" -lt "$end" ]; do sleep 10; done; kill $$) &
 fi
+# GEX_KDE_XLOG=FILE (debugging): the X server's top-level windows, mapped
+# or not, once a minute
+if [ -n "${GEX_KDE_XLOG:-}" ]; then
+    (while :; do sleep 60; { date +%T; xwininfo -root -children; } >> "$GEX_KDE_XLOG" 2>&1; done) &
+fi
 # GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
 if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
     export GEX_KDE_DBUS_LOG
