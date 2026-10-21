@@ -171,6 +171,20 @@ def target_lib(name):
     return name.endswith(('-dev', '-dev-bin')) is False and name.startswith('lib') or name.endswith('-dev')
 
 
+def leniency(log):
+    """What gexcc let through in a build (its log): calls to undeclared C
+    library functions (a warning, as on glibc), calls to undeclared
+    functions of any other kind (implicit int), and functions linked to a
+    trapping stub because they were declared with the wrong type. Each
+    symbol once."""
+    t = open(log, errors='replace').read()
+    lib = sorted(set(re.findall(r"call to undeclared library function '([^']+)'", t)))
+    other = sorted(set(re.findall(r"call to undeclared function '([^']+)'", t)))
+    stub = sorted(set(re.findall(r'gexcc: warning: (\S+) is declared .* calls to it trap', t)))
+    part = lambda what, xs: f'{what} {len(xs)}' + (f' [{" ".join(xs[:12])}{" ..." if len(xs) > 12 else ""}]' if xs else '')
+    return '; '.join([part('undeclared-libc', lib), part('undeclared-other', other), part('trap-stubs', stub)])
+
+
 def clause_names(field):
     """First alternatives of a Depends-style field, names only."""
     out = []
@@ -299,7 +313,10 @@ class Builder:
             return 'build made no .deb'
         with open(os.path.join(self.work, 'built.txt'), 'a') as f:
             f.write(f'{name} {ver}\n')
-        print(f'ok {name} {ver}: {" ".join(sorted(made))}', flush=True)
+        lenient = leniency(log)
+        with open(os.path.join(self.work, 'lenient.txt'), 'a') as f:
+            f.write(f'{name} {ver}: {lenient}\n')
+        print(f'ok {name} {ver} ({lenient}): {" ".join(sorted(made))}', flush=True)
         return 'ok'
 
 
