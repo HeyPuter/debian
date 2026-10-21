@@ -59,7 +59,7 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': []})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set()})
         if kind == 'profile':
             c['profile'].add(what)
         elif kind in ('env', 'meson', 'make', 'autoconf'):
@@ -292,9 +292,67 @@ class Builder:
             needs.append(dep)
         return debs, needs, lacks
 
+    def headers_of(self, binary):
+        """The headers-only source (cuts.txt `headers`) BINARY comes from,
+        when it is one of that source's packages that were not repacked: a
+        compiled library there is none of for wasm32."""
+        s = self.source_of(binary)
+        h = CUTS.get(s, {}).get('headers', set()) if s else set()
+        return s if h and binary not in h else None
+
+    def repack_headers(self, name):
+        """A `headers` source: its named binary packages are Debian's own
+        build-machine debs, repacked for the target. Only headers and text
+        (CMake package files) may be in them: anything compiled (an ELF
+        file, a static or shared library) stops the repack."""
+        made, ver = [], None
+        for binary in sorted(CUTS[name]['headers']):
+            p = self.debian.get(binary)
+            if p is None:
+                return f'headers: no package {binary} in the archive'
+            ver = p['Version']
+            deb = debfetch.fetch(self.cache, p)
+            with tempfile.TemporaryDirectory() as t:
+                subprocess.run(['dpkg-deb', '-R', deb, t], check=True)
+                for root, _, files in os.walk(t):
+                    if os.path.relpath(root, t).split(os.sep)[0] == 'DEBIAN':
+                        continue
+                    for f in files:
+                        path = os.path.join(root, f)
+                        if os.path.islink(path):
+                            continue
+                        with open(path, 'rb') as fh:
+                            magic = fh.read(8)
+                        if magic.startswith(b'\x7fELF') or magic == b'!<arch>\n' or re.search(r'\.(a|o|so)(\.[0-9.]+)?$', f):
+                            return f'headers: {binary} holds a compiled file ({os.path.relpath(path, t)})'
+                # the build machine's multiarch directory is the target's
+                lib = os.path.join(t, 'usr/lib')
+                if os.path.isdir(lib):
+                    for d in os.listdir(lib):
+                        if re.match(r'[a-z0-9_]+-linux-gnu[a-z]*$', d):
+                            os.rename(os.path.join(lib, d), os.path.join(lib, 'wasm32-linux-musl'))
+                ctl = os.path.join(t, 'DEBIAN', 'control')
+                text = re.sub(r'(?m)^Architecture: .*$', f'Architecture: {ARCH}', open(ctl).read())
+                open(ctl, 'w').write(text)
+                for x in ('md5sums',):
+                    if os.path.exists(os.path.join(t, 'DEBIAN', x)):
+                        os.unlink(os.path.join(t, 'DEBIAN', x))
+                out = os.path.join(self.work, 'debs', f'{binary}_{ver.split(":")[-1]}_{ARCH}.deb')
+                subprocess.run(['dpkg-deb', '--root-owner-group', '-Zxz', '-b', t, out], check=True,
+                               stdout=subprocess.DEVNULL)
+                made.append(os.path.basename(out))
+        self.ours = built_debs(self.work)
+        with open(os.path.join(self.work, 'built.txt'), 'a') as f:
+            f.write(f'{name} {ver}\n')
+        print(f'ok {name} {ver} (headers only, repacked): {" ".join(made)}', flush=True)
+        return 'ok'
+
     def plan(self, name, index=False):
         """INDEX: read Build-Depends from the archive's Sources index rather
         than fetching the source (the same fields, for ordering only)."""
+        if CUTS.get(name, {}).get('headers'):
+            # repacked, not built: nothing of its own Build-Depends is needed
+            return None, None, [], [], []
         if index:
             if not hasattr(self, 'sources'):
                 self.sources = debsrc.sources(self.cache, 'trixie')
@@ -314,7 +372,13 @@ class Builder:
 
     def build(self, name):
         """One source package: 'ok', or the reason it was not built."""
+        if CUTS.get(name, {}).get('headers'):
+            return self.repack_headers(name)
         ver, srcdir, debs, needs, lacks = self.plan(name)
+        compiled = [f'{n} (a compiled library of {self.headers_of(n)}, which is headers only for wasm32: cuts.txt)'
+                    for n in needs if self.headers_of(n)]
+        if compiled:
+            return 'needs ' + ' '.join(compiled)
         if needs or lacks:
             return f'needs {" ".join(needs) or "-"}; chroot lacks {" ".join(lacks) or "-"}'
         for deb in debs:
