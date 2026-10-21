@@ -78,3 +78,5 @@ systemd-dev texi2html texinfo time tzdata unicode-cldr-core unicode-data unzip w
 x11proto-core-dev x11proto-dev x11proto-dri2-dev x11proto-scrnsaver-dev x11proto-video-dev 
 x11proto-xf86vidmode-dev xauth xbitmaps xcb-proto xdg-user-dirs xfonts-utils xfslibs-dev xkb-data 
 xml-core xmlto xmltoman xorg-sgml-doctools xsltproc xtrans-dev xutils-dev xz-utils yasm zlib1g-dev 
+# documentation tools some debian/rules require whatever the profile (libxkbcommon: -Denable-docs=true)
+doxygen graphviz

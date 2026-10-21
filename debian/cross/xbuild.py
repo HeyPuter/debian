@@ -32,8 +32,10 @@ PROFILES = {'cross', 'nocheck', 'nodoc', 'noudeb', 'noinsttest',
             # build-dependency cycles): stage1 builds a source's libraries
             # without the parts that need the rest of the archive (systemd's
             # is libsystemd and libudev only), the no* ones drop language
-            # bindings, and the pkg.SRC.* ones each source's optional extras
-            'stage1', 'pkg.util-linux.noverity', 'nopython', 'nogir', 'nojava', 'noruby', 'nobiarch',
+            # bindings, and the pkg.SRC.* ones each source's optional extras.
+            # (stage1 is per source, in cuts.txt: some sources' stage1 and
+            # nodoc together do not build)
+            'pkg.util-linux.noverity', 'nopython', 'nogir', 'nojava', 'noruby', 'nobiarch',
             'pkg.ncurses.noexamples', 'pkg.openldap.noslapd', 'pkg.unbound.libonly', 'pkg.elfutils.nodebuginfod', 'pkg.systemd.nobpf',
             'pkg.cyrus-sasl2.nogssapi', 'pkg.cyrus-sasl2.nosql', 'pkg.curl.noldap', 'pkg.glib2.0.nosysprof',
             'pkg.pango1.0.nosysprof', 'pkg.postgresql.nollvm', 'pkg.freetype.nodemos', 'pkg.sysprof.nogui',
@@ -55,8 +57,10 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
         if not line or line.startswith('#'):
             continue
         src, kind, what = line.split()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'env': []})
-        if kind == 'env':
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'env': [], 'profile': set()})
+        if kind == 'profile':
+            c['profile'].add(what)
+        elif kind == 'env':
             c['env'].append(what)
         elif kind == 'cmake':
             c['cmake'].append(tuple(what.split('=', 1)))
@@ -68,6 +72,10 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
 CUTS = load_cuts()
 
 
+def profiles_of(src):
+    return PROFILES | CUTS.get(src, {}).get('profile', set())
+
+
 def arch_matches(term):
     """Whether a Debian architecture or wildcard (linux-any, any-wasm32,
     musl-linux-any, any) names musl-linux-wasm32."""
@@ -76,7 +84,7 @@ def arch_matches(term):
     return False
 
 
-def deps_of(control):
+def deps_of(control, profiles=PROFILES):
     """Build-Depends and Build-Depends-Arch of a debian/control, first
     alternatives that apply to this build: [(name, qualifier)]."""
     src = next(debfetch.stanzas(control))
@@ -97,7 +105,7 @@ def deps_of(control):
                     continue
             # <profile> restrictions: a group applies when all its terms do
             groups = re.findall(r'<([^>]*)>', alt)
-            if groups and not any(all((t[1:] not in PROFILES) if t.startswith('!') else (t in PROFILES)
+            if groups and not any(all((t[1:] not in profiles) if t.startswith('!') else (t in profiles)
                                       for t in g.split()) for g in groups):
                 continue
             m = re.match(r'([a-z0-9][a-z0-9+.-]*)(?::(native|any))?', alt)
@@ -266,7 +274,7 @@ class Builder:
             ver, srcdir = self.fetch(name)
             control = open(os.path.join(srcdir, 'debian/control')).read()
         cut = CUTS.get(name, {}).get('cut', set())
-        deps = [(d, q) for d, q in deps_of(control) if d not in cut]
+        deps = [(d, q) for d, q in deps_of(control, profiles_of(name)) if d not in cut]
         debs, needs, lacks = self.target_closure([(d, q if q else '') for d, q in deps])
         return ver, srcdir, debs, needs, lacks
 
@@ -278,7 +286,7 @@ class Builder:
         for deb in debs:
             into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
         log = os.path.join(self.work, 'logs', f'{name}.log')
-        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(PROFILES))}" '
+        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(profiles_of(name)))}" '
                f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
                'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
         c = CUTS.get(name)

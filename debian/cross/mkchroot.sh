@@ -16,4 +16,14 @@ for l in cc:gcc c++:g++ cpp:cpp-14; do
     n=${l%%:*} t=${l#*:}
     [ -e "$D/usr/bin/$n" ] || ln -s "$t" "$D/usr/bin/$n"
 done
+# The XML catalog docbook-xml's and docbook-xsl's maintainer scripts would
+# have registered (update-xmlcatalog): without it xmlto and xsltproc fetch
+# the DTDs from the network, and fail
+mkdir -p "$D/etc/xml"
+{
+    echo '<?xml version="1.0"?>'
+    echo '<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">'
+    (cd "$D" && find usr/share/xml -name catalog.xml | sort) | sed 's|.*|  <nextCatalog catalog="/&"/>|'
+    echo '</catalog>'
+} > "$D/etc/xml/catalog"
 echo "$D"

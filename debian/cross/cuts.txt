@@ -8,6 +8,7 @@
 #   SOURCE  cmake VAR=V  CMake cache VAR forced to V, over what debian/rules
 #                        passes (gexcc's toolchain file, after -D)
 #   SOURCE  env VAR=V    VAR=V in the environment of SOURCE's build
+#   SOURCE  profile P    Debian build profile P for SOURCE alone
 #
 # then `| why | what is lost`. `RUNTIME:` in what is lost marks something a
 # Plasma session uses at run time.
@@ -54,3 +55,10 @@ qcoro     drop libqcoro5qml0t64           | Qt 5 build | as above
 qcoro     drop libqcoro5quick0t64         | Qt 5 build | as above
 qcoro     drop libqcoro5websockets0t64    | Qt 5 build | as above
 qcoro     drop qcoro-qt5-dev              | Qt 5 build | as above
+# Debian's stage1 bootstrap profile, for the sources whose full build needs
+# what is built after them (systemd: libsystemd and libudev only)
+systemd     profile stage1    | systemd's full build needs much of the archive | everything of systemd but libsystemd and libudev (gex runs no init system)
+util-linux  profile stage1    | its full build needs libsystemd and libudev from systemd | util-linux's programs' systemd and audit integration
+pam         profile stage1    | its full build needs libaudit | PAM's audit logging
+krb5        profile stage1    | its full build needs openldap and cyrus-sasl2 | Kerberos' LDAP KDB backend and SASL
+libffi      cut dejagnu       | the test suite's runner, not guarded by nocheck | nothing (tests are not run)
