@@ -1,0 +1,34 @@
+#!/bin/sh
+# Plasma on X11, started straight from pid 1: no display manager, no login.
+#
+# The X server is rootful and fullscreen, and KWin is its window manager, so
+# the frames are Breeze's. In the page the X server is the page's own
+# (hostx rootful) and already listening on :0; natively (GEX_KDE_XWAYLAND=1)
+# it is Debian's Xwayland, started here as a client of gex's compositor.
+#
+# No GL: KWin's only X11 compositor is OpenGL, and the X server has none to
+# give it, so compositing is off; Qt Quick (plasmashell, the KCMs) draws in
+# software.
+export HOME=/root USER=root LOGNAME=root SHELL=/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export XDG_RUNTIME_DIR=/run/user/0
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+export XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESKTOP_SESSION=plasma
+export XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share:/usr/share
+export KWIN_COMPOSE=N QT_QUICK_BACKEND=software QT_XCB_GL_INTEGRATION=none
+export LANG=C.UTF-8
+unset WAYLAND_DISPLAY
+export DISPLAY=${DISPLAY:-:0}
+n=${DISPLAY#:}
+if [ "${GEX_KDE_XWAYLAND:-0}" = 1 ]; then
+    rm -f "/tmp/.X$n-lock" "/tmp/.X11-unix/X$n"
+    WAYLAND_DISPLAY=${GEX_KDE_WAYLAND:-wayland-0} XWAYLAND_NO_GLAMOR=1 \
+        Xwayland "$DISPLAY" -fullscreen ${GEX_KDE_GEOMETRY:+-geometry $GEX_KDE_GEOMETRY} -shm -ac -nolisten tcp -noreset > /tmp/xwayland.log 2>&1 &
+    i=0
+    while [ ! -S "/tmp/.X11-unix/X$n" ]; do
+        [ $i -ge 600 ] && { echo "gex-kde-session: no X server after 600 s"; exit 1; }
+        sleep 1; i=$((i + 1))
+    done
+    echo "gex-kde-session: X $DISPLAY up after $i s"
+fi
+exec dbus-run-session startplasma-x11

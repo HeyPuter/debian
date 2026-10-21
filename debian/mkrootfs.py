@@ -338,9 +338,12 @@ def main():
     ap.add_argument('--exclude', default='', help='our packages to leave out of the image (still in the repo)')
     ap.add_argument('--ours', default='', help='only these of our packages in the image (still all in the repo)')
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--arch', default='arm64',
+                    help="Debian's architecture for the tree (amd64: the cross build's chroot)")
     a = ap.parse_args()
-    global a_minimal
+    global a_minimal, NATIVE
     a_minimal = not a.full
+    NATIVE = a.arch
 
     ours = []
     for deb in sorted(glob.glob(os.path.join(a.pool, f'*_{OURS_ARCH}.deb'))

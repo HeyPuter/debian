@@ -1,0 +1,38 @@
+# The KDE session's arm64 packages (Debian trixie), beyond mkrootfs.py's
+# system roots: Plasma on X11 (KWin as the X window manager), and the apps.
+plasma-workspace
+plasma-desktop
+kwin-x11
+breeze
+plasma-integration
+kde-cli-tools
+systemsettings
+dolphin
+konsole
+kate
+dbus
+fonts-hack
+breeze-icon-theme
+x11-xserver-utils
+# Debian's Essential tools (mkrootfs.py takes them from our pool otherwise)
+bash
+dash
+coreutils
+sed
+grep
+findutils
+diffutils
+tar
+gzip
+util-linux
+mawk
+hostname
+debianutils
+bsdutils
+ncurses-bin
+sysvinit-utils
+procps
+less
+# natively only: the X server is Debian's, in the guest (the page has its own)
+xwayland
+x11-xkb-utils

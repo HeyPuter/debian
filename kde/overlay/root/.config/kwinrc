@@ -1,0 +1,6 @@
+[Compositing]
+Enabled=false
+
+[Plugins]
+blurEnabled=false
+contrastEnabled=false
