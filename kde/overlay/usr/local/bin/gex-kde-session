@@ -44,7 +44,9 @@ fi
 # GEX_KDE_STOP_AFTER=SECONDS (debugging): the session ends then, and gex
 # with it, normally (a recorded profile is written at exit)
 if [ -n "${GEX_KDE_STOP_AFTER:-}" ]; then
-    (sleep "$GEX_KDE_STOP_AFTER"; kill $$) &
+    # by the clock, in short sleeps (a long one ends early on an older gex)
+    end=$(( $(date +%s) + GEX_KDE_STOP_AFTER ))
+    (while [ "$(date +%s)" -lt "$end" ]; do sleep 10; done; kill $$) &
 fi
 # GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
 if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
