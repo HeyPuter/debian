@@ -268,3 +268,6 @@ systemd   drop libnss-mymachines         | as above | as above
 systemd   drop libnss-resolve            | as above | as above
 systemd   drop libnss-systemd            | as above | as above
 krb5      cut libnss-myhostname          | its tests resolve the host name through it; systemd builds no NSS modules here | none (tests only)
+pam       patch 0001-install-no-unix-update.patch | debian/libpam-modules-bin.install names unix_update, which pam_unix builds only with SELinux (packaging only) | nothing (the SELinux password helper)
+libbsd    patch 0001-no-nlist-on-wasm32.patch | a missing port: nlist() needs the target's ELF machine (src/local-elf.h), and a wasm32 program is no ELF image | nlist() and __fdnlist (no program can have an ELF symbol table to read here)
+libglu    meson b_lundef=false          | gex's GL driver (gex-gl) has no evaluators (glMap1f, glMap2f): libGLU's NURBS code leaves them to load time | GLU's NURBS curves and surfaces (an unbound function if called); nothing in the closure draws NURBS

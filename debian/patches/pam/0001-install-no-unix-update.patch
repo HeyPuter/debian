@@ -1,0 +1,12 @@
+debian/libpam-modules-bin.install only (packaging, no source): pam_unix's
+unix_update helper is built only with SELinux (modules/pam_unix/meson.build),
+which this build has none of (cuts.txt: selinux=disabled).
+
+--- a/debian/libpam-modules-bin.install
++++ b/debian/libpam-modules-bin.install
+@@ -1,5 +1,4 @@
+ usr/sbin/unix_chkpwd
+-usr/sbin/unix_update
+ usr/sbin/mkhomedir_helper
+ usr/sbin/pam_namespace_helper
+ usr/sbin/pwhistory_helper

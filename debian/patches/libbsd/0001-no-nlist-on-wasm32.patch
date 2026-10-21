@@ -1,0 +1,15 @@
+A missing port (source): nlist() needs the ELF machine of the target
+(src/local-elf.h); a wasm32 program is no ELF image, so the ABI is off
+there, as it is on the systems libbsd lists without nlist.
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -369,6 +369,8 @@
+ ], [
+   abi_pwcache=no
+ ])
++# nlist() reads an ELF image's symbol table: a wasm32 program has none
++AS_CASE([$host_cpu], [wasm32], [abi_nlist=no])
+ AS_IF([test "$abi_err" = "yes" || test "$abi_errc" = "yes"], [
+   abi_err_h=yes
+ ], [
