@@ -93,3 +93,90 @@ glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function who
 libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)
 icu       make GENCCODE_ASSEMBLY=        | configure picks genccode's `-a gcc` for any *-linux* gcc: ELF assembly (.type x,%object), which the wasm assembler does not take; without it pkgdata writes the data as C | nothing (the same data, compiled from C)
 openssl   env OPENSSL_LOCAL_CONFIG_DIR=@CROSS@/openssl | debian/rules configures the target debian-$(DEB_HOST_ARCH), which Debian's 20-debian.conf has only for its own architectures; openssl/50-wasm32.conf adds debian-musl-linux-wasm32 (linux-generic32, no assembly) | nothing (generic C instead of assembly: slower crypto)
+
+# Plasma 6 on Qt 6 only: the Qt 5 half of each source that builds both. debian/rules
+# configures its default build directory without a Qt version (Qt 5); the forced
+# cache variable makes that directory a second Qt 6 build, and its packages are dropped.
+polkit-qt-1 cmake QT_MAJOR_VERSION=6     | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | polkit-qt for Qt 5 apps
+polkit-qt-1 cut qtbase5-dev              | the Qt 5 half's | as above
+polkit-qt-1 drop libpolkit-qt5-1-dev     | a Qt 5 package | as above
+polkit-qt-1 drop libpolkit-qt5-1-1       | a Qt 5 package | as above
+packagekit-qt cmake BUILD_WITH_QT6=ON      | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | PackageKit for Qt 5 apps
+packagekit-qt cut qtbase5-dev              | the Qt 5 half's | as above
+packagekit-qt drop libpackagekitqt5-1      | a Qt 5 package | as above
+packagekit-qt drop libpackagekitqt5-dev    | a Qt 5 package | as above
+qca2       cmake BUILD_WITH_QT6=ON      | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | QCA for Qt 5 apps
+qca2       cut qtbase5-dev              | the Qt 5 half's | as above
+qca2       drop libqca-qt5-2            | a Qt 5 package | as above
+qca2       drop libqca-qt5-2-plugins    | a Qt 5 package | as above
+qca2       drop qca-qt5-2-utils         | a Qt 5 package | as above
+qca2       drop libqca-qt5-2-dev        | a Qt 5 package | as above
+libqaccessibilityclient cmake BUILD_WITH_QT6=ON      | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | the accessibility client for Qt 5 apps
+libqaccessibilityclient cut qtbase5-dev              | the Qt 5 half's | as above
+libqaccessibilityclient drop libqaccessibilityclient-qt5-dev | a Qt 5 package | as above
+libqaccessibilityclient drop libqaccessibilityclient-qt5-0 | a Qt 5 package | as above
+qtkeychain cmake BUILD_WITH_QT6=ON      | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | QtKeychain for Qt 5 apps
+qtkeychain cut qtbase5-private-dev      | the Qt 5 half's | as above
+qtkeychain cut qttools5-dev             | the Qt 5 half's | as above
+qtkeychain cut qttools5-dev-tools       | the Qt 5 half's | as above
+qtkeychain drop libqt5keychain1         | a Qt 5 package | as above
+qtkeychain drop qt5keychain-dev         | a Qt 5 package | as above
+qtkeychain drop qtkeychain-qt5-dev      | a Qt 5 package | as above
+breeze     cmake BUILD_QT5=OFF          | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | VISIBLE: the Breeze widget style for Qt 5 apps (a Qt 5 app would draw in Fusion); no app in our set is Qt 5
+breeze     cut libkf5config-dev         | the Qt 5 half's | as above
+breeze     cut libkf5configwidgets-dev  | the Qt 5 half's | as above
+breeze     cut libkf5coreaddons-dev     | the Qt 5 half's | as above
+breeze     cut libkf5guiaddons-dev      | the Qt 5 half's | as above
+breeze     cut libkf5i18n-dev           | the Qt 5 half's | as above
+breeze     cut libkf5iconthemes-dev     | the Qt 5 half's | as above
+breeze     cut libkf5kcmutils-dev       | the Qt 5 half's | as above
+breeze     cut libkf5style-dev          | the Qt 5 half's | as above
+breeze     cut libkf5windowsystem-dev   | the Qt 5 half's | as above
+breeze     cut libqt5x11extras5-dev     | the Qt 5 half's | as above
+breeze     cut qtbase5-dev              | the Qt 5 half's | as above
+breeze     cut qtdeclarative5-dev       | the Qt 5 half's | as above
+breeze     drop kde-style-breeze-qt5    | a Qt 5 package | as above
+kdegraphics-mobipocket cmake QT_MAJOR_VERSION=6     | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | the Qt 5 Mobipocket reader library
+kdegraphics-mobipocket cut libkf5kio-dev            | the Qt 5 half's | as above
+kdegraphics-mobipocket cut qtbase5-dev              | the Qt 5 half's | as above
+kdegraphics-mobipocket drop libqmobipocket-dev      | a Qt 5 package | as above
+kdegraphics-mobipocket drop libqmobipocket2         | a Qt 5 package | as above
+plasma-desktop cut libkaccounts6-dev     | KAccounts (kaccounts-integration) is built against KF5 too (kio, wallet, kcmutils 5; qcoro-qt5), and pulls signond and libaccounts-qt | the Online Accounts KCM and its integration (no accounts in the page)
+libksysguard cut libpcap-dev             | libpcap pulls bluez, and through it alsa's Python, systemtap, avahi and gtk3 | per-application network usage in System Monitor (its network plugin and helper)
+libksysguard exclude ksgrd_network_helper | the helper is not built without libpcap | as above
+libksysguard exclude ksysguard_plugin_network | the plugin is not built without libpcap | as above
+alsa-lib  cut libpython3-dev              | configure uses Python only for the mixer Python modules, off by default (Debian does not enable them) | nothing
+kf6-solid cut libimobiledevice-dev        | libimobiledevice and libplist build Python bindings with no knob, which pull CPython and through it systemtap, avahi and gtk3 | Solid's iPhone/iPad backend (no USB devices in the page)
+kf6-solid cut libplist-dev                | as above | as above
+zxing-cpp cut python3-dev                 | the Python module, which pulls CPython (as above) | python3-zxing-cpp (nothing in a Plasma session)
+zxing-cpp cmake ZXING_PYTHON_MODULE=OFF   | debian/rules passes -DZXING_PYTHON_MODULE=ON | as above
+zxing-cpp drop python3-zxing-cpp          | it is the Python module | as above
+libcanberra cut libpulse-dev              | PulseAudio pulls samba, bluez, gtk3 and Qt 5 (as qt6-base's cuts) | RUNTIME: KDE's event sounds have no PulseAudio or GStreamer backend, ALSA only (the page has no ALSA device either: no notification sounds)
+libcanberra cut libgstreamer1.0-dev       | GStreamer pulls gobject-introspection and CPython | as above
+libcanberra cut libgtk-3-dev              | the GTK3 module only (Plasma does not load it) | libcanberra-gtk3-module (GTK3 apps' event sounds)
+libcanberra make DEB_CONFIGURE_EXTRA_FLAGS=--disable-pulse --disable-gstreamer --disable-gtk --disable-gtk3 --disable-gtk-doc --with-builtin=dso --enable-alsa --disable-oss --disable-tdb | debian/rules passes --enable-pulse --enable-gstreamer and --enable-tdb (ALSA as Debian sets it for Linux) | as above
+libcanberra drop libcanberra-pulse        | the PulseAudio backend | as above
+libcanberra drop libcanberra-gstreamer    | the GStreamer backend | as above
+libcanberra drop libcanberra-gtk3-0       | GTK3 | as above
+libcanberra drop libcanberra-gtk3-dev     | GTK3 | as above
+libcanberra drop libcanberra-gtk3-module  | GTK3 | as above
+libcanberra drop libcanberra-gtk-common-dev | GTK3 | as above
+libcanberra drop gnome-session-canberra   | GTK3 | as above
+libcanberra cut libtdb-dev                | tdb is built by the samba source in trixie | the sound lookup cache (each event sound is looked up again)
+breeze    cut kirigami2-dev               | the Qt 5 half's (Kirigami 2 for the Qt 5 style's config) | as breeze above
+kf6-ktextwidgets cut qt6-speech-dev       | Qt TextToSpeech pulls speech-dispatcher, espeak-ng and PulseAudio | "Speak Text" in KDE text fields' context menu
+kf6-ktextwidgets cut qt6-multimedia-dev   | only with TextToSpeech; Qt Multimedia pulls ffmpeg, GStreamer, PipeWire, PulseAudio | as above
+kf6-kfilemetadata cut libavcodec-dev      | ffmpeg (and through it SDL, PipeWire, x264, vlc) | Baloo's audio/video metadata (duration, codec) for media files
+kf6-kfilemetadata cut libavdevice-dev     | as above | as above
+kf6-kfilemetadata cut libavformat-dev     | as above | as above
+kf6-kfilemetadata cut libavutil-dev       | as above | as above
+kf6-kfilemetadata cut libpostproc-dev     | as above | as above
+kf6-kfilemetadata cut libswscale-dev      | as above | as above
+plasma5support cut libkf6networkmanagerqt-dev | NetworkManager (libnm) pulls bluez, ModemManager, evolution-data-server | RUNTIME: Plasma's network data engine has no NetworkManager (the page has no NetworkManager either)
+plasma-workspace cut libkf6networkmanagerqt-dev | as plasma5support | RUNTIME: as above (no network status in Plasma)
+plasma-workspace cut libpipewire-0.3-dev  | PipeWire pulls bluez, GStreamer, PulseAudio, libcamera | RUNTIME: no PipeWire: the camera indicator applet; no sound server at all in the session
+plasma-workspace cut libkpipewire-dev     | as above (kpipewire is PipeWire and ffmpeg) | PipeWire window thumbnails (Wayland only; X11 thumbnails are KWin's own)
+plasma-workspace cut libkf6userfeedback-dev | KUserFeedback pulls Qt Charts and Qt Multimedia | the telemetry KCM (off by default)
+kwin      cut libpipewire-0.3-dev         | as plasma-workspace | RUNTIME: KWin's screencast plugin (Wayland screen sharing; the X11 session does not use it)
+kf6-kwallet cut libgpgme-dev              | gpgme1.0's rules build its Qt 5 and Python bindings with no knob (--enable-languages="python cpp qt5 qt6"), so gpgme pulls Qt 5 and CPython | GPG-encrypted wallets in KWallet (Blowfish wallets remain)
+kf6-kwallet cut libgpgmepp-dev            | as above | as above

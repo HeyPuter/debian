@@ -57,7 +57,8 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
         line = line.split('|')[0].strip()
         if not line or line.startswith('#'):
             continue
-        src, kind, what = line.split()
+        src, kind, what = line.split(None, 2)  # a make value may have spaces
+        what = what.strip()
         c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': []})
         if kind == 'profile':
             c['profile'].add(what)
@@ -246,7 +247,8 @@ class Builder:
             p = self.debian.get(dep)
             build_side = q in ('native', 'any') or not target_lib(dep) or (
                 p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign'))
-            if dep in self.ours and q != 'native':
+            # a tool is the build machine's even when we built a wasm32 one
+            if dep in self.ours and not build_side:
                 deb = self.ours[dep]
                 debs.append(deb)
                 ctl = subprocess.run(['dpkg-deb', '-f', deb, 'Depends'], capture_output=True, text=True).stdout
@@ -302,7 +304,7 @@ class Builder:
         # at level 0 even where the rules export a stricter level, since a
         # wasm module has no symbol versions and every versioned list differs
         makevars = ['DPKG_GENSYMBOLS_CHECK_LEVEL=0'] + (c['make'] if c else [])
-        env += " MAKEFLAGS='" + ' '.join(makevars) + "'"
+        env += " MAKEFLAGS='" + ' '.join(v.replace(' ', '\\ ') for v in makevars) + "'"
         if c and (c['drop'] or c['exclude']):
             env += ' DH_OPTIONS="' + ' '.join([f'-N{b}' for b in sorted(c['drop'])] +
                                              [f'-X{x}' for x in sorted(c['exclude'])]) + '"'
