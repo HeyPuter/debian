@@ -61,6 +61,12 @@ mkdir -p "$slots"
 for t in "$E"/bin/*-pkg-config; do
     [ -e "$t" ] && ln -sfn "$t" "$C/usr/bin/$(basename "$t")"
 done
+# the target's multiarch directories at the paths a Debian cross build has
+# them (debian/rules name /usr/lib/TRIPLET/tcl8.6 and the like): the sysroot's
+for d in usr/lib/wasm32-linux-musl usr/include/wasm32-linux-musl; do
+    mkdir -p "$P/sysroot/$d"
+    [ -d "$C/$d" ] && [ ! -L "$C/$d" ] || ln -sfn "$P/sysroot/$d" "$C/$d"
+done
 exec bwrap --unshare-user --uid 0 --gid 0 --unshare-ipc --unshare-pid --die-with-parent \
     --bind "$C" / --dev /dev --proc /proc --tmpfs /tmp \
     --ro-bind "$LLVM" "$LLVM" --tmpfs /usr/local/bin "${tools[@]}" \
