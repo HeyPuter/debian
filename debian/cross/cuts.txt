@@ -38,3 +38,19 @@ xxhash    env CC=wasm32-linux-musl-gcc    | debian/rules' install step runs make
 # users here take it for arc4random and have their own fallbacks:
 libxdmcp  cut libbsd-dev                  | libbsd does not build (above); configure falls back from arc4random_buf to getentropy | nothing
 expat     cut libbsd-dev                  | libbsd does not build (above); expat seeds its hash from getrandom instead of arc4random | nothing
+# qcoro builds once for Qt 5 and once for Qt 6 (debian/rules configures
+# both); Plasma 6 uses the Qt 6 one. Both configures get Qt 6, and the Qt 5
+# packages are not built:
+qcoro     cut qtbase5-dev                 | Qt 5 (qtbase-opensource-src pulls PulseAudio, samba, cups, gtk3) | the Qt 5 build of qcoro, which nothing in Plasma 6 uses
+qcoro     cut qtbase5-private-dev         | as above | as above
+qcoro     cut qtdeclarative5-dev          | as above | as above
+qcoro     cut qtdeclarative5-private-dev  | as above | as above
+qcoro     cut libqt5websockets5-dev       | as above | as above
+qcoro     cmake USE_QT_VERSION=6          | debian/rules' first configure passes -DUSE_QT_VERSION=5 | as above
+qcoro     drop libqcoro5core0t64          | Qt 5 build | as above
+qcoro     drop libqcoro5dbus0t64          | Qt 5 build | as above
+qcoro     drop libqcoro5network0t64       | Qt 5 build | as above
+qcoro     drop libqcoro5qml0t64           | Qt 5 build | as above
+qcoro     drop libqcoro5quick0t64         | Qt 5 build | as above
+qcoro     drop libqcoro5websockets0t64    | Qt 5 build | as above
+qcoro     drop qcoro-qt5-dev              | Qt 5 build | as above

@@ -82,6 +82,16 @@ export GEXCC_PREFIX=$P
 # CMake (>= 3.21) reads the toolchain file from the environment: the sysroot
 # and the search modes, under debhelper's own -D options
 export CMAKE_TOOLCHAIN_FILE=$P/share/gexcc/toolchain.cmake
-export CONFIG_SITE=$P/share/gexcc/config.site
+# then Debian's nodoc profile for configure scripts that do not read it
+# themselves (the X.Org ones build their docs whenever xmlto is found)
+export CONFIG_SITE="$P/share/gexcc/config.site $E/nodoc.site"
 ENV
+cat > "$E/nodoc.site" <<'SITE'
+# DEB_BUILD_PROFILES=nodoc for configure: no documentation tools
+case " ${DEB_BUILD_PROFILES:-} " in *" nodoc "*)
+  : "${with_xmlto=no}" "${with_fop=no}" "${with_xsltproc=no}" "${with_asciidoc=no}"
+  : "${enable_docs=no}" "${enable_specs=no}" "${enable_devel_docs=no}" "${enable_gtk_doc=no}"
+  ;;
+esac
+SITE
 echo "$E/env.sh"

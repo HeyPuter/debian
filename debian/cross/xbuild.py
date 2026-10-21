@@ -144,8 +144,10 @@ def into_sysroot(deb, sysroot, done, chroot=None):
     done.add(deb)
     with tempfile.TemporaryDirectory() as t:
         subprocess.run(['dpkg-deb', '-x', deb, t], check=True)
+        # (and usr/share's data a pkg-config file points at in the sysroot:
+        # xcb-proto's XML, xorg-sgml-doctools' stylesheets)
         for sub in ('usr/include', 'usr/lib', 'usr/share/pkgconfig', 'usr/share/cmake', 'usr/share/aclocal',
-                    'usr/share/ECM', 'usr/lib/cmake'):
+                    'usr/share/ECM', 'usr/lib/cmake', 'usr/share/xcb', 'usr/share/sgml', 'usr/share/xml'):
             s = os.path.join(t, sub)
             if os.path.isdir(s):
                 os.makedirs(os.path.join(sysroot, sub), exist_ok=True)
@@ -275,7 +277,8 @@ class Builder:
             os.makedirs(os.path.dirname(init), exist_ok=True)
             with open(init, 'w') as f:
                 for var, val in c['cmake']:
-                    f.write(f'set({var} {val} CACHE BOOL "cuts.txt" FORCE)\n')
+                    kind = 'BOOL' if val.upper() in ('ON', 'OFF', 'TRUE', 'FALSE') else 'STRING'
+                    f.write(f'set({var} {val} CACHE {kind} "cuts.txt" FORCE)\n')
             env += f' GEXCC_CMAKE_INIT={init}'
         cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
         with open(log, 'w') as f:
