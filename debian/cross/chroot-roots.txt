@@ -48,3 +48,33 @@ bash dash coreutils sed grep findutils diffutils tar gzip bzip2 xz-utils util-li
 hostname debianutils bsdutils ncurses-bin sysvinit-utils procps file patch
 # the host's clang (bound in by in-chroot.sh) links these
 libedit2 libffi8 libxml2 libzstd1 zlib1g
+# the KDE set's Build-Depends for the build machine (Architecture all, Multi-Arch
+# foreign or :native), less compilers and documentation toolchains it does not need
+asciidoc asciidoc-base aspell aspell-en autoconf autoconf-archive autoconf-dickey autoconf2.69 
+autogen automake autopoint autotools-dev bash-completion binutils bison byacc bzip2 ca-certificates 
+chrpath cmake coreutils cpio cython3 d-shlibs dbus dbus-x11 dctrl-tools debhelper 
+desktop-file-utils dh-apparmor dh-autoreconf dh-builtusing dh-debputy dh-dlopenlibdeps dh-exec 
+dh-nss dh-package-notes dh-python dh-strip-nondeterminism dist docbook-to-man docbook-xml 
+docbook-xsl docbook-xsl-ns docbook2x dpkg dpkg-dev dwz ed exuberant-ctags fakeroot faketime file 
+flatbuffers-compiler flex g++-14 gawk gengetopt gettext git glslang-tools glslc gnome-pkg-tools 
+gnulib googletest gperf gpgrt-tools groff-base gtk-doc-tools help2man hwdata indent intltool 
+iso-codes itstool jq libc-bin libcap2-bin libdatrie1-bin libeigen3-dev libfl-dev libglib2.0-doc 
+libgtk-3-bin libgtk-4-bin libjs-highlight.js libjs-jquery libjs-mathjax libjs-underscore 
+libmodule-build-perl libparse-yapp-perl libsimde-dev libtasn1-bin libtest-minimumversion-perl 
+libtest-perl-critic-perl libtest-pod-coverage-perl libtest-pod-perl libtest-spelling-perl 
+libtest-strict-perl libtest-synopsis-perl libtool liburi-perl libutfcpp-dev libwayland-bin 
+libwayland-dev libxml-simple-perl libxml2-utils libxtensor-dev linux-libc-dev locales lsb-release 
+lua5.2 m4 man2html-base mandoc mawk media-types meson net-tools netbase ninja-build patch patchelf 
+patchutils perl pkg-kde-tools pkgconf po-debconf po4a procps protobuf-compiler 
+protobuf-compiler-grpc publicsuffix pybind11-dev python3 python3-all python3-all-dev python3-attr 
+python3-debian python3-dev python3-dnspython python3-docutils python3-glad python3-jinja2 
+python3-lxml python3-mako python3-markdown python3-packaging python3-pexpect python3-pip 
+python3-plist python3-ply python3-pycparser python3-pyelftools python3-pytest python3-setuptools 
+python3-six python3-structlog python3-xcbgen python3-yaml python3.13 python3.13-minimal 
+qt6-base-dev qt6-declarative-dev qt6-l10n-tools qt6-shader-baker qt6-shadertools-dev qt6-tools-dev 
+qt6-tools-dev-tools qt6-wayland-dev qt6-wayland-dev-tools qttools5-dev-tools qtwayland5-dev-tools 
+quilt rdfind rename rpcsvc-proto rsync sassc scdoc shared-mime-info sharutils sqv swig symlinks 
+systemd-dev texi2html texinfo time tzdata unicode-cldr-core unicode-data unzip wayland-protocols 
+x11proto-core-dev x11proto-dev x11proto-dri2-dev x11proto-scrnsaver-dev x11proto-video-dev 
+x11proto-xf86vidmode-dev xauth xbitmaps xcb-proto xdg-user-dirs xfonts-utils xfslibs-dev xkb-data 
+xml-core xmlto xmltoman xorg-sgml-doctools xsltproc xtrans-dev xutils-dev xz-utils yasm zlib1g-dev 
