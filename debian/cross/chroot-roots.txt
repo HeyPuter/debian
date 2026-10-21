@@ -43,3 +43,8 @@ xz-utils
 zstd
 fakeroot
 gobject-introspection
+# Essential: mkrootfs.py lays out only what the roots pull in
+bash dash coreutils sed grep findutils diffutils tar gzip bzip2 xz-utils util-linux mawk gawk
+hostname debianutils bsdutils ncurses-bin sysvinit-utils procps file patch
+# the host's clang (bound in by in-chroot.sh) links these
+libedit2 libffi8 libxml2 libzstd1 zlib1g

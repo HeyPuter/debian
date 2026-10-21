@@ -3,7 +3,7 @@
 # browser is the target). Frames go to OUT/frames (one in GEX_PPM_EVERY), the
 # session's log to OUT/log.
 #
-#   kde/run-native.sh TREE OUT [gexc] [WxH]
+#   kde/run-native.sh TREE OUT [gexc] [WxH]     (GEXC_ARGS: more gexc run options, e.g. --strace)
 set -u
 tree=$(realpath "${1:?TREE}"); out=$(realpath -m "${2:?OUT}")
 gexc=${3:-${GEX_SRC:?set GEX_SRC or pass gexc}/target/release/gexc}
@@ -12,5 +12,5 @@ mkdir -p "$out/frames"
 GEX_PPM_EVERY=${GEX_PPM_EVERY:-50} timeout -k 10 "${TMO:-1800}" "$gexc" run --sysroot "$tree" --uid 0 \
     --wayland /tmp/gex-kde-wl --wayland-size "$size" --wayland-out "$out/frames/f" \
     --bind "$out=/out" --env GEX_KDE_XWAYLAND=1 --env GEX_KDE_LOG=/out --env "GEX_KDE_GEOMETRY=$size" \
-    "$tree/usr/bin/bash" /usr/local/bin/gex-kde-session > "$out/log" 2>&1
+    ${GEXC_ARGS:-} "$tree/usr/bin/bash" /usr/local/bin/gex-kde-session > "$out/log" 2>&1
 echo "exit $?"

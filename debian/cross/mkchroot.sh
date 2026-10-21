@@ -8,7 +8,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 D=$(realpath -m "${1:?DIR}")
 CACHE=${DEB_CACHE:-$(dirname "$D")/deb}
 mkdir -p "$CACHE" "$D.nopool"
-roots=$(grep -v '^#' "$HERE/chroot-roots.txt" | grep . | paste -sd,)
+roots=$(grep -v '^#' "$HERE/chroot-roots.txt" | tr -s ' \t\n' ',' | sed 's/^,//; s/,$//')
 python3 -I "$HERE/../mkrootfs.py" --arch amd64 --pool "$D.nopool" --cache "$CACHE" --out "$D" --extra "$roots"
 # What gcc's and the other maintainer scripts would have linked (alternatives
 # mkrootfs.py does not know): cc, c++, cpp.
