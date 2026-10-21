@@ -2,7 +2,7 @@
 # Build a minimal Debian arm64 root filesystem, without root and without
 # debootstrap.
 #
-#   web/build-debian.sh [out.tar] [work-dir]
+#   rootfs/build-debian.sh [out.tar] [work-dir]
 #
 # debootstrap needs root because it wants to chroot and run maintainer
 # scripts. Nothing here does: a .deb is an `ar` archive with a tar inside, and
@@ -23,7 +23,7 @@ case "$ARCH" in
     amd64) SUB=x86/ WSUF=-amd64 ;;
     *) SUB= WSUF= ;;
 esac
-OUT="${1:-$(cd "$(dirname "$0")" && pwd)/public/rootfs/${SUB}debian.tar}"
+OUT="${1:-${OUT_DIR:-$(cd "$(dirname "$0")/.." && pwd)/out}/rootfs/${SUB}debian.tar}"
 WORK="${2:-${TMPDIR:-/tmp}/gex-debian$WSUF}"
 MIRROR="${GEX_DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 SUITE="${GEX_DEBIAN_SUITE:-bookworm}"

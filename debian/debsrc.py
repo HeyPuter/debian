@@ -6,7 +6,7 @@
 InRelease (gpgv, debian-archive-keyring) -> Sources.xz (SHA256 from
 InRelease) -> the .dsc (SHA256 from Sources) -> the tarballs (dpkg-source
 checks them against the .dsc). `dpkg-source -x` unpacks and applies
-debian/patches; then tools/gexcc/debian/patches/SRCPKG/*.patch are applied
+debian/patches; then debian/patches/SRCPKG/*.patch are applied
 with `patch -p1` in name order. A VERSION pin that no longer matches the
 index fails (a Debian point release changes the pin explicitly).
 

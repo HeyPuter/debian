@@ -1,6 +1,6 @@
 # rootfs manifests
 
-The deployed graphics rootfs (`web/public/rootfs/graphics.tar`, gitignored) is a
+The deployed graphics rootfs (`out/rootfs/graphics.tar`, which gex's page serves as `web/public/rootfs/graphics.tar`) is a
 curated NEEDED-closure subset of a much larger apt-grafted tree. These manifests
 record which files each heavy app contributes on top of the base tar, so the tar
 can be reconstructed without re-deriving the closure by hand.

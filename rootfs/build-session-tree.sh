@@ -2,7 +2,7 @@
 # The source tree the session image is made from: Debian, plus the programs the
 # compositor demo offers.
 #
-#   web/build-session-tree.sh [work-dir]
+#   rootfs/build-session-tree.sh [work-dir]
 #
 # `build-graphics-rootfs.sh` takes a tree and turns it into an image. This says
 # what is in the tree, which until now was whatever the invocation that happened
@@ -30,7 +30,7 @@ BASE="apt dash bash coreutils dpkg findutils grep sed tar gzip diffutils
 # picker offers, and Mesa's own GL utilities. `dbus` and `dbus-user-session` are
 # not decoration -- KF5 asks for a session bus before it draws anything.
 # No `xwayland`: the X server is the one in the page now (see
-# `web/build-xwayland-wasm.sh`), cross-built to wasm rather than run as a
+# gex's `web/build-xwayland-wasm.sh`), cross-built to wasm rather than run as a
 # guest program. `xvfb` stays because the graphics-in-browser test starts one.
 APPS="xvfb x11-apps xterm twm tk8.6
       mesa-utils glmark2-x11 gtk-3-examples

@@ -5,11 +5,12 @@
 # /usr/lib/gex/aarch64/<soname>.wasm, where the page's libprov finds them by
 # soname and replaces the arm64 libraries an arm64 program (apt) maps.
 #
-#   mkdeb.sh POOL [WORK]   (GEXCC_PREFIX, A64_SYSROOT; GEX_CRT_SRC if the
+#   mkdeb-providers.sh POOL [WORK]   (GEX_SRC, GEXCC_PREFIX, A64_SYSROOT; GEX_CRT_SRC if the
 #                           sysroot is to be built: WORK/a64libc otherwise)
 # Prints `gex-providers-arm64 VERSION PATH`.
 set -eu
-H=$(cd "$(dirname "$0")" && pwd)
+# the builders are gex's (tools/gexcc/item3): the libraries are gex's providers
+H=${GEX_SRC:?set GEX_SRC to a gex checkout}/tools/gexcc/item3
 POOL=$(realpath -m "$1"); W=$(realpath -m "${2:-$HOME/gex-sandbox/scratch/CC/item3-deb}")
 mkdir -p "$POOL" "$W"
 if [ -z "${A64_SYSROOT:-}" ]; then

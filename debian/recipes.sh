@@ -1,4 +1,4 @@
-# Recipes for tools/gexcc/debian/build.sh. build_SRCPKG (dashes, dots and
+# Recipes for debian/build.sh. build_SRCPKG (dashes, dots and
 # pluses as underscores) runs in the unpacked Debian source tree with `set -e`
 # and installs into $DEST (that package's staging tree, a merged-/usr root).
 # Libraries also install into $SYSROOT so later packages link them. Options

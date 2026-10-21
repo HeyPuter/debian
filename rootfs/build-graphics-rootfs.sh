@@ -1,12 +1,12 @@
 #!/bin/sh
 # The root filesystem the browser's glxgears demo runs in.
 #
-#   web/build-graphics-rootfs.sh [out.tar] [source-rootfs]
+#   rootfs/build-graphics-rootfs.sh [out.tar] [source-rootfs]
 #
 # Debian's own aarch64 binaries, as shipped. Nothing here is built for the
 # occasion, and nothing is patched.
 #
-# The source tree is the one `web/build-session-tree.sh` builds and
+# The source tree is the one `rootfs/build-session-tree.sh` builds and
 # a Debian with the session's programs
 # unpacked into it. What comes across is that tree less its documentation, its
 # translations and what only a compiler reads -- so the image is a Debian
@@ -25,7 +25,7 @@
 # wants, and the 22 MB of libz3 behind that. All of it is gone, because the
 # guest no longer has a graphics driver at all -- its `libGL`/`libEGL` are
 # marshallers, and the Mesa that runs is a wasm one in the page's compositor
-# worker (see `web/build-mesa-wasm.sh`).
+# worker (see `gex's web/build-mesa-wasm.sh`).
 #
 # `Xwayland` is gone for the same reason: the X server is in the page too.
 # What stays is the X *clients* and their libraries, which is what a session
@@ -34,6 +34,8 @@
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# Where images are written: $OUT_DIR/rootfs/ (default: this repository's out/).
+OUT_DIR="${OUT_DIR:-$(cd "$HERE/.." && pwd)/out}"
 # The guest architecture. `GEX_ARCH=x86` curates the x86-64 tree (the one
 # `GEX_DEBIAN_ARCH=amd64 build-debian.sh` with the graphics roots produces)
 # into `rootfs/x86/graphics.tar`, with Debian's x86-64 multiarch names, the
@@ -42,15 +44,15 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ "${GEX_ARCH:-}" = "x86" ]; then
     MA=x86_64-linux-gnu
     LDSO=ld-linux-x86-64.so.2
-    OUT="${1:-$HERE/public/rootfs/x86/graphics.tar}"
+    OUT="${1:-$OUT_DIR/rootfs/x86/graphics.tar}"
     SRC="${2:-/tmp/gex-gfx-amd64/root}"
     WORK="${GEX_ASSET_WORK:-${TMPDIR:-/tmp}/gex-assets}/graphics-x86"
     CC="${GEX_CC:-$(command -v gcc)}"
-    GEXC="${GEXC:-$HERE/../target/x86/release/gexc}"
+    GEXC="${GEXC:-${GEX_SRC:?set GEX_SRC to a gex checkout}/target/x86/release/gexc}"
 else
     MA=aarch64-linux-gnu
     LDSO=ld-linux-aarch64.so.1
-    OUT="${1:-$HERE/public/rootfs/graphics.tar}"
+    OUT="${1:-$OUT_DIR/rootfs/graphics.tar}"
     SRC="${2:-/tmp/gex-x/root}"
     WORK="${GEX_ASSET_WORK:-${TMPDIR:-/tmp}/gex-assets}/graphics"
     TOOLCHAIN="${GEX_TOOLCHAIN:-$HOME/toolchains/aarch64-linux-musl-cross}"
@@ -487,20 +489,20 @@ install_paths "$WORK/closure"
 [ -e "$R/usr/games/explosive-c4" ] &&
     ln -sf ../games/explosive-c4 "$R/usr/bin/explosive-c4"
 
-# -- the app deltas recorded in web/rootfs-manifests -----------------------
+# -- the app deltas recorded in rootfs/manifests -----------------------
 #
 # The closure pass above starts at a program and follows DT_NEEDED. A heavy KDE
 # application reaches much more than that: Dolphin runs KIO workers out of
 # libexec, loads kcms and parts as kservice plugins, and reads .desktop and
 # .kcfg data that names them -- none of it in anyone's DT_NEEDED. That file
-# list was derived once (see `web/rootfs-manifests/README.md`) and is written
+# list was derived once (see `rootfs/manifests/README.md`) and is written
 # down rather than re-derived here, so this pass is a copy of what the
 # manifest says.
 #
 # A path the source tree does not have is counted, not fatal: a manifest may
 # name a program this image was not built with, and the count is the signal
 # for whether that matters.
-for m in "$HERE"/rootfs-manifests/*-delta.txt; do
+for m in "$HERE"/manifests/*-delta.txt; do
     [ -f "$m" ] || continue
     echo "  $(basename "$m"):"
     # The manifests were traced on the arm64 image and name its multiarch
@@ -635,7 +637,7 @@ fi
 # build: the paths come out guest-absolute because to that program they ARE
 # its paths, and the qemu-user this used to need (with a host prefix to strip
 # back off afterwards) is gone.
-GEXC="${GEXC:-$HERE/../target/release/gexc}"
+GEXC="${GEXC:-${GEX_SRC:-/nonexistent}/target/release/gexc}"
 QL=/usr/lib/${MA}/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders
 if [ -x "$GEXC" ] && [ -e "$R$QL" ]; then
     if "$GEXC" run --sysroot "$R" --uid 0 "$R$QL" \

@@ -1,10 +1,10 @@
 #!/bin/bash
 # Build Debian source packages with gexcc into native wasm32 programs.
 #
-#   tools/gexcc/debian/build.sh SRCPKG...        (or a tier: tier1, tier2, ...)
+#   debian/build.sh SRCPKG...        (or a tier: tier1, tier2, ...)
 #
 # Environment:
-#   GEXCC_PREFIX  an installed toolchain (tools/gexcc/install.sh); its sysroot
+#   GEXCC_PREFIX  an installed toolchain (gex's tools/gexcc/install.sh); its sysroot
 #                 receives the libraries later packages link
 #   GEXCC_DEB     work area (default ~/gex-sandbox/scratch/CC/debian):
 #                 src/ unpacked sources, stage/SRCPKG/ install trees,

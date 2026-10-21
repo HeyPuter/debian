@@ -7,7 +7,7 @@ The tar holds every file, symlink and directory of TREE that BASE lacks or
 has different, except the dpkg status (one file every image has); instead
 the stanzas of the packages BASE lacks go in var/lib/gex-overlay/NAME.status,
 and the page appends them to the running system's status
-(web/src/overlay-worker.js).
+(gex's web/src/overlay-worker.js).
 
   mkoverlay.py --base BASE --tree TREE --name NAME --tar OUT.tar
 """
