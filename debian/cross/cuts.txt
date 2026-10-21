@@ -17,6 +17,8 @@
 #   SOURCE  env VAR=V    VAR=V in the environment of SOURCE's build
 #   SOURCE  autoconf VAR=V  VAR=V in a site file configure reads after its
 #                        options (with_X=no over the rules' --with-X)
+#                        (env and autoconf values: @CROSS@ is this directory,
+#                        @SYSROOT@ the target's sysroot)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
 #                        applies it); only where packaging cannot do it
@@ -271,3 +273,4 @@ krb5      cut libnss-myhostname          | its tests resolve the host name throu
 pam       patch 0001-install-no-unix-update.patch | debian/libpam-modules-bin.install names unix_update, which pam_unix builds only with SELinux (packaging only) | nothing (the SELinux password helper)
 libbsd    patch 0001-no-nlist-on-wasm32.patch | a missing port: nlist() needs the target's ELF machine (src/local-elf.h), and a wasm32 program is no ELF image | nlist() and __fdnlist (no program can have an ELF symbol table to read here)
 libglu    meson b_lundef=false          | gex's GL driver (gex-gl) has no evaluators (glMap1f, glMap2f): libGLU's NURBS code leaves them to load time | GLU's NURBS curves and surfaces (an unbound function if called); nothing in the closure draws NURBS
+unbound   autoconf with_ssl=@SYSROOT@/usr | its configure looks for OpenSSL's headers on the build machine's paths (a cross build of Debian's has them there; ours are in the sysroot) | nothing

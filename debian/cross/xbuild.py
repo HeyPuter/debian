@@ -328,14 +328,16 @@ class Builder:
         # beats the makefile's, `export` or not): symbols files are checked
         # at level 0 even where the rules export a stricter level, since a
         # wasm module has no symbol versions and every versioned list differs
+        sysroot = os.path.join(os.path.realpath(self.a.prefix), 'sysroot')
         makevars = ['DPKG_GENSYMBOLS_CHECK_LEVEL=0'] + (c['make'] if c else [])
         env += " MAKEFLAGS='" + ' '.join(v.replace(' ', '\\ ') for v in makevars) + "'"
         if c and (c['drop'] or c['exclude']):
             env += ' DH_OPTIONS="' + ' '.join([f'-N{b}' for b in sorted(c['drop'])] +
                                              [f'-X{x}' for x in sorted(c['exclude'])]) + '"'
         if c:
-            # @CROSS@: this directory (in-chroot.sh binds it read-only)
-            env += ''.join(f' {e.replace("@CROSS@", HERE)}' for e in c['env'])
+            # @CROSS@: this directory (in-chroot.sh binds it read-only);
+            # @SYSROOT@: the target's
+            env += ''.join(f' {e.replace("@CROSS@", HERE).replace("@SYSROOT@", sysroot)}' for e in c['env'])
         if c and c['cmake']:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
@@ -358,7 +360,8 @@ class Builder:
             site = os.path.join(self.work, 'autoconf-site', f'{name}.site')
             os.makedirs(os.path.dirname(site), exist_ok=True)
             with open(site, 'w') as f:
-                f.write(f'. {os.path.join(self.a.prefix, "share/gexcc/config.site")}\n' + ''.join(f'{v}\n' for v in c['autoconf']))
+                f.write(f'. {os.path.join(self.a.prefix, "share/gexcc/config.site")}\n' +
+                        ''.join(f'{v.replace("@SYSROOT@", sysroot)}\n' for v in c['autoconf']))
             env += f' CONFIG_SITE={site}'
         # a tree kept from an earlier attempt: debhelper's stamp says it is
         # built, and a clean target that does not run dh_clean (db5.3's)
