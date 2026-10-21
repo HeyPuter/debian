@@ -41,6 +41,11 @@ if [ "${GEX_KDE_XWAYLAND:-0}" = 1 ]; then
     done
     echo "gex-kde-session: X $DISPLAY up after $i s"
 fi
+# GEX_KDE_STOP_AFTER=SECONDS (debugging): the session ends then, and gex
+# with it, normally (a recorded profile is written at exit)
+if [ -n "${GEX_KDE_STOP_AFTER:-}" ]; then
+    (sleep "$GEX_KDE_STOP_AFTER"; kill $$) &
+fi
 # GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
 if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
     export GEX_KDE_DBUS_LOG
