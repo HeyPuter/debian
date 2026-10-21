@@ -99,6 +99,27 @@ fi
 exec /usr/bin/meson "$@"
 SH
 chmod +x "$E/bin/meson"
+# chrpath: a gexcc container has no ELF dynamic section (its run path is
+# in the wasm module's dylink.0), so `chrpath -d` on one (sqlite3's tcl
+# module) has nothing to delete; any other file, and any other use, is the
+# real chrpath's
+cat > "$E/bin/chrpath" <<'SH'
+#!/bin/sh
+case " $* " in
+*" -d "*|*" --delete "*)
+    for f; do
+        case $f in -*) continue ;; esac
+        [ -f "$f" ] || continue
+        if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
+            continue
+        fi
+        /usr/bin/chrpath -d "$f" || exit
+    done
+    exit 0 ;;
+esac
+exec /usr/bin/chrpath "$@"
+SH
+chmod +x "$E/bin/chrpath"
 cat > "$E/env.sh" <<ENV
 # . this file: Debian's build tools, cross for musl-linux-wasm32 through gexcc
 export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH
