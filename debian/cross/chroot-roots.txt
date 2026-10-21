@@ -57,7 +57,7 @@ desktop-file-utils dh-apparmor dh-autoreconf dh-builtusing dh-debputy dh-dlopenl
 dh-nss dh-package-notes dh-python dh-strip-nondeterminism dist docbook-to-man docbook-xml 
 docbook-xsl docbook-xsl-ns docbook2x dpkg dpkg-dev dwz ed exuberant-ctags fakeroot faketime file 
 flatbuffers-compiler flex g++-14 gawk gengetopt gettext git glslang-tools glslc gnome-pkg-tools 
-gnulib googletest gperf gpgrt-tools groff-base gtk-doc-tools help2man hwdata indent intltool 
+gnulib gnuplot-nox googletest gperf gpgrt-tools groff groff-base gtk-doc-tools help2man hwdata indent intltool 
 iso-codes itstool jq libc-bin libcap2-bin libdatrie1-bin libeigen3-dev libfl-dev libglib2.0-doc 
 libgtk-3-bin libgtk-4-bin libjs-highlight.js libjs-jquery libjs-mathjax libjs-underscore 
 libmodule-build-perl libparse-yapp-perl libsimde-dev libtasn1-bin libtest-minimumversion-perl 
