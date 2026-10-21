@@ -25,14 +25,34 @@ import argparse, glob, os, re, shutil, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
 import debfetch  # noqa: E402
+import debsrc  # noqa: E402
 
-PROFILES = {'cross', 'nocheck', 'nodoc', 'noudeb', 'noinsttest'}
+PROFILES = {'cross', 'nocheck', 'nodoc', 'noudeb', 'noinsttest',
+            # Debian's bootstrap profiles (what rebootstrap uses to break
+            # build-dependency cycles): stage1 builds a source's libraries
+            # without the parts that need the rest of the archive (systemd's
+            # is libsystemd and libudev only), the no* ones drop language
+            # bindings, and the pkg.SRC.* ones each source's optional extras
+            'stage1', 'pkg.util-linux.noverity', 'nopython', 'nogir', 'nojava', 'noruby', 'nobiarch',
+            'pkg.openldap.noslapd', 'pkg.unbound.libonly', 'pkg.elfutils.nodebuginfod', 'pkg.systemd.nobpf',
+            'pkg.cyrus-sasl2.nogssapi', 'pkg.cyrus-sasl2.nosql', 'pkg.curl.noldap', 'pkg.glib2.0.nosysprof',
+            'pkg.pango1.0.nosysprof', 'pkg.postgresql.nollvm', 'pkg.freetype.nodemos', 'pkg.sysprof.nogui',
+            'pkg.ffmpeg.stage1', 'pkg.libwebp.notiff', 'pkg.openjpeg2.noapache', 'pkg.libsndfile.nompeg3',
+            'pkg.libcamera.nosdl', 'pkg.libcamera.noqt', 'pkg.libcamera.nopython', 'pkg.libcamera.notrace'}
 ARCH = 'musl-linux-wasm32'
 # What gexcc itself is for the target: its C library, C++ runtime and kernel
 # headers are the sysroot's, its pkg-config the wrapper over the sysroot (a
 # cross build's PKG:wasm32 of these)
 TOOLCHAIN = {'libc6-dev', 'libc-dev', 'linux-libc-dev', 'pkg-config', 'pkgconf', 'libstdc++-dev',
              'libstdc++-14-dev', 'libgcc-14-dev', 'libgcc-s1', 'libatomic1', 'libc++-dev', 'libc++abi-dev'}
+
+
+def arch_matches(term):
+    """Whether a Debian architecture or wildcard (linux-any, any-wasm32,
+    musl-linux-any, any) names musl-linux-wasm32."""
+    if term in ('any', ARCH, 'linux-any', 'any-wasm32', 'musl-linux-any', 'musl-any-any', 'any-any-wasm32'):
+        return True
+    return False
 
 
 def deps_of(control):
@@ -49,8 +69,11 @@ def deps_of(control):
             # [arch] restrictions: none of ours name wasm32, so a positive
             # list excludes it and a negated one keeps it
             archs = re.findall(r'\[([^]]*)\]', alt)
-            if archs and not all(a.strip().startswith('!') for a in archs[0].split()):
-                continue
+            if archs:
+                terms = archs[0].split()
+                hit = any(arch_matches(t.lstrip('!')) for t in terms)
+                if (hit if terms[0].startswith('!') else not hit):
+                    continue
             # <profile> restrictions: a group applies when all its terms do
             groups = re.findall(r'<([^>]*)>', alt)
             if groups and not any(all((t[1:] not in PROFILES) if t.startswith('!') else (t in PROFILES)
@@ -105,6 +128,135 @@ def into_sysroot(deb, sysroot, done):
                                check=True)
 
 
+def target_lib(name):
+    """Whether a binary package is something the target build links or
+    includes (a -dev package or a library), not a tool it runs. Debian marks
+    few tools Multi-Arch: foreign (make, cython3, python3-* and the like are
+    'allowed' or 'same'), and a cross build cannot run a wasm32 one, so a tool
+    is taken from the build machine whatever its marking."""
+    if re.search(r'-(perl|python|ruby|tcl|java|ocaml|lua|php)$', name) or name.startswith(('python3-', 'ruby-', 'node-')):
+        return False
+    return name.endswith(('-dev', '-dev-bin')) is False and name.startswith('lib') or name.endswith('-dev')
+
+
+def clause_names(field):
+    """First alternatives of a Depends-style field, names only."""
+    out = []
+    for clause in (field or '').split(','):
+        alt = clause.split('|')[0].strip()
+        m = re.match(r'([a-z0-9][a-z0-9+.-]*)', alt)
+        if m:
+            out.append(m.group(1))
+    return out
+
+
+class Builder:
+    def __init__(self, a):
+        self.a = a
+        self.work = os.path.abspath(a.work)
+        self.cache = a.cache or os.path.join(self.work, 'deb')
+        for d in ('src', 'debs', 'logs'):
+            os.makedirs(os.path.join(self.work, d), exist_ok=True)
+        self.sysroot = os.path.join(a.prefix, 'sysroot')
+        self.debian, _ = debfetch.packages(self.cache, 'trixie', 'amd64')
+        self.chroot_has = installed(a.chroot)
+        self.unpacked = set()
+        self.ours = built_debs(self.work)
+
+    def source_of(self, binary):
+        p = self.debian.get(binary)
+        return (p.get('Source') or p['Package']).split()[0] if p else None
+
+    def fetch(self, name):
+        r = subprocess.run([sys.executable, '-I', os.path.join(HERE, '..', 'debsrc.py'), '--cache', self.cache,
+                            '--into', os.path.join(self.work, 'src'), name], capture_output=True, text=True)
+        if r.returncode:
+            raise RuntimeError(f'fetch: {r.stderr.strip()[-300:]}')
+        _, ver, srcdir = r.stdout.split()[:3]
+        return ver, srcdir
+
+    def target_closure(self, deps):
+        """What the target side of DEPS needs in the sysroot: (debs to unpack,
+        binaries not built yet, build-machine tools the chroot lacks)."""
+        debs, needs, lacks, seen = [], [], [], set()
+        todo = list(deps)
+        while todo:
+            dep, q = todo.pop()
+            if dep in seen or dep in TOOLCHAIN:
+                continue
+            seen.add(dep)
+            p = self.debian.get(dep)
+            build_side = q in ('native', 'any') or not target_lib(dep) or (
+                p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign'))
+            if dep in self.ours and q != 'native':
+                deb = self.ours[dep]
+                debs.append(deb)
+                ctl = subprocess.run(['dpkg-deb', '-f', deb, 'Depends'], capture_output=True, text=True).stdout
+                todo += [(n, None) for n in clause_names(ctl)]
+                continue
+            if build_side or (p is None and dep in self.chroot_has):
+                if dep not in self.chroot_has and q is not None:
+                    lacks.append(dep)
+                if p is not None and p.get('Architecture') == 'all' and q != 'native':
+                    debs.append(debfetch.fetch(self.cache, p))
+                    todo += [(n, None) for n in clause_names(p.get('Depends'))]
+                continue
+            needs.append(dep)
+        return debs, needs, lacks
+
+    def plan(self, name, index=False):
+        """INDEX: read Build-Depends from the archive's Sources index rather
+        than fetching the source (the same fields, for ordering only)."""
+        if index:
+            if not hasattr(self, 'sources'):
+                self.sources = debsrc.sources(self.cache, 'trixie')
+            st = self.sources.get(name)
+            if st is None:
+                raise RuntimeError(f'no source package {name}')
+            ver, srcdir = st['Version'], None
+            control = f'Source: {name}\n' + ''.join(f'{k}: {st[k]}\n' for k in ('Build-Depends', 'Build-Depends-Arch')
+                                                    if k in st)
+        else:
+            ver, srcdir = self.fetch(name)
+            control = open(os.path.join(srcdir, 'debian/control')).read()
+        deps = deps_of(control)
+        debs, needs, lacks = self.target_closure([(d, q if q else '') for d, q in deps])
+        return ver, srcdir, debs, needs, lacks
+
+    def build(self, name):
+        """One source package: 'ok', or the reason it was not built."""
+        ver, srcdir, debs, needs, lacks = self.plan(name)
+        if needs or lacks:
+            return f'needs {" ".join(needs) or "-"}; chroot lacks {" ".join(lacks) or "-"}'
+        for deb in debs:
+            into_sysroot(deb, self.sysroot, self.unpacked)
+        log = os.path.join(self.work, 'logs', f'{name}.log')
+        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(PROFILES))}" '
+               f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
+               'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
+        cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
+        with open(log, 'w') as f:
+            r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
+                                '--bind', self.work, '--', 'bash', '-c', cmd], stdout=f, stderr=subprocess.STDOUT)
+        if r.returncode:
+            tail = open(log, errors='replace').read().strip().split('\n')[-3:]
+            return f'build (log {log}): ' + ' | '.join(tail)
+        parent = os.path.dirname(srcdir)
+        made = []
+        for f in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}_*.deb')):
+            shutil.move(f, os.path.join(self.work, 'debs', os.path.basename(f)))
+            made.append(os.path.basename(f))
+        for f in glob.glob(os.path.join(parent, f'{name}_*.buildinfo')) + glob.glob(os.path.join(parent, f'{name}_*.changes')):
+            os.unlink(f)
+        self.ours = built_debs(self.work)
+        if not made:
+            return 'build made no .deb'
+        with open(os.path.join(self.work, 'built.txt'), 'a') as f:
+            f.write(f'{name} {ver}\n')
+        print(f'ok {name} {ver}: {" ".join(sorted(made))}', flush=True)
+        return 'ok'
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--chroot', required=True)
@@ -113,69 +265,55 @@ def main():
     ap.add_argument('--work', required=True)
     ap.add_argument('--cache', default=os.environ.get('DEB_CACHE'))
     ap.add_argument('--jobs', default=os.environ.get('JOBS', '8'))
-    ap.add_argument('--keep', action='store_true', help='reuse an unpacked source tree')
+    ap.add_argument('--auto', action='store_true',
+                    help='build what each package needs first, in dependency order')
+    ap.add_argument('--plan', action='store_true', help='with --auto: print the order, build nothing')
     ap.add_argument('pkgs', nargs='+')
     a = ap.parse_args()
-    work = os.path.abspath(a.work)
-    cache = a.cache or os.path.join(work, 'deb')
-    for d in ('src', 'debs', 'logs'):
-        os.makedirs(os.path.join(work, d), exist_ok=True)
-    sysroot = os.path.join(a.prefix, 'sysroot')
-    debian, _ = debfetch.packages(cache, 'trixie', 'amd64')
-    chroot_has = installed(a.chroot)
-    unpacked = set()
+    b = Builder(a)
+    bt = os.path.join(b.work, 'built.txt')
+    built = {l.split()[0] for l in open(bt)} if os.path.exists(bt) else set()
+    state = {}   # source -> 'ok' | reason | 'visiting'
+    order = []
+
+    def visit(src, chain):
+        if src in built and src not in a.pkgs:
+            return
+        if src in state:
+            if state[src] == 'visiting':
+                print(f'cycle: {" -> ".join(chain + [src])}', flush=True)
+            return
+        state[src] = 'visiting'
+        try:
+            _, _, _, needs, _ = b.plan(src, index=True)
+        except RuntimeError as e:
+            state[src] = str(e)
+            return
+        for bin_ in needs:
+            s = b.source_of(bin_)
+            if s and s != src:
+                visit(s, chain + [src])
+        state[src] = 'planned'
+        order.append(src)
+        print(f'  {len(order)}: {src} (needs {len(needs)}) via {" <- ".join(reversed(chain[-6:]))}', file=sys.stderr, flush=True)
+
+    if not a.auto:
+        order = list(a.pkgs)
+    else:
+        for p in a.pkgs:
+            visit(p, [])
+        print('order: ' + ' '.join(order), flush=True)
+        if a.plan:
+            return
     failed = 0
-    for name in a.pkgs:
-        r = subprocess.run([sys.executable, '-I', os.path.join(HERE, '..', 'debsrc.py'), '--cache', cache,
-                            '--into', os.path.join(work, 'src'), name], capture_output=True, text=True)
-        if r.returncode:
-            print(f'FAIL {name}: fetch: {r.stderr.strip()[-300:]}')
+    for src in order:
+        try:
+            r = b.build(src)
+        except RuntimeError as e:
+            r = str(e)
+        if r != 'ok':
+            print(f'FAIL {src}: {r}', flush=True)
             failed += 1
-            continue
-        _, ver, srcdir = r.stdout.split()[:3]
-        ours = built_debs(work)
-        needs, native_missing = [], []
-        for dep, q in deps_of(open(os.path.join(srcdir, 'debian/control')).read()):
-            if dep in TOOLCHAIN:
-                continue
-            p = debian.get(dep)
-            build_side = q == 'native' or (p is not None and (p.get('Architecture') == 'all'
-                                                                or p.get('Multi-Arch') == 'foreign'))
-            if build_side or (p is None and dep in chroot_has and dep not in ours):
-                if dep not in chroot_has:
-                    native_missing.append(dep)
-                if p is not None and p.get('Architecture') == 'all' and q != 'native':
-                    into_sysroot(debfetch.fetch(cache, p), sysroot, unpacked)
-                continue
-            if dep in ours:
-                into_sysroot(ours[dep], sysroot, unpacked)
-            else:
-                needs.append(dep)
-        if needs or native_missing:
-            print(f'FAIL {name}: needs {" ".join(needs) or "-"}; chroot lacks {" ".join(native_missing) or "-"}')
-            failed += 1
-            continue
-        log = os.path.join(work, 'logs', f'{name}.log')
-        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="cross nocheck nodoc noudeb" '
-               f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={a.jobs}" '
-               'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
-        cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
-        with open(log, 'w') as f:
-            r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), a.chroot, a.prefix, a.env, '--bind', work,
-                                '--', 'bash', '-c', cmd], stdout=f, stderr=subprocess.STDOUT)
-        if r.returncode:
-            tail = open(log, errors='replace').read().strip().split('\n')[-3:]
-            print(f'FAIL {name}: build (log {log}): ' + ' | '.join(tail))
-            failed += 1
-            continue
-        parent = os.path.dirname(srcdir)
-        made = []
-        for f in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}_*.deb')):
-            shutil.move(f, os.path.join(work, 'debs', os.path.basename(f)))
-            made.append(os.path.basename(f))
-        for f in glob.glob(os.path.join(parent, f'{name}_*.buildinfo')) + glob.glob(os.path.join(parent, f'{name}_*.changes')):
-            os.unlink(f)
-        print(f'ok {name} {ver}: {" ".join(sorted(made))}')
     sys.exit(1 if failed else 0)
 
 
