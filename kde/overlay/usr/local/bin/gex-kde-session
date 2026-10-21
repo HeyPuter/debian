@@ -41,4 +41,10 @@ if [ "${GEX_KDE_XWAYLAND:-0}" = 1 ]; then
     done
     echo "gex-kde-session: X $DISPLAY up after $i s"
 fi
+# GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
+if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
+    export GEX_KDE_DBUS_LOG
+    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c \
+        'dbus-monitor --session > "$GEX_KDE_DBUS_LOG" 2>&1 & exec startplasma-x11'
+fi
 exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf startplasma-x11
