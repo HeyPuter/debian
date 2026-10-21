@@ -15,5 +15,11 @@ mkdir -p "$O" "$CACHE" "$O/nopool"
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/nopool" --cache "$CACHE" --out "$O/tree" --extra "$roots"
 cp -a "$HERE/overlay/." "$O/tree/"
+# The caches packages' triggers make (mkrootfs runs no maintainer scripts),
+# made by the build machine's tools: the MIME database (KService and every
+# file dialog read it) and the compiled GSettings schemas. Both are
+# architecture-independent.
+XDG_DATA_DIRS="$O/tree/usr/share" update-mime-database "$O/tree/usr/share/mime"
+[ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
 tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name -cf "$O/kde.tar" .
 echo "$O/kde.tar: $(du -h "$O/kde.tar" | cut -f1)"
