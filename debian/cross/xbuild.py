@@ -260,7 +260,10 @@ class Builder:
                 continue
             seen.add((dep, q == 'native'))
             p = self.debian.get(dep)
-            build_side = q in ('native', 'any') or not target_lib(dep) or (
+            # a package of our own Debian has no such name for (gex-gl, the
+            # GL provider's libraries) is the target's
+            ours_only = p is None and dep in self.ours
+            build_side = q in ('native', 'any') or not (target_lib(dep) or ours_only) or (
                 p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign'))
             # a tool is the build machine's even when we built a wasm32 one
             if dep in self.ours and not build_side:
