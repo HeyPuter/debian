@@ -18,6 +18,9 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 PUB=${PUB:-${GEX_SRC:?set GEX_SRC to a gex checkout, or PUB to its web/public}/web/public}
+# where an item's `files` come from: gex's web/public, also when PUB is elsewhere
+export FILES_FROM=${FILES_FROM:-${GEX_SRC:+$GEX_SRC/web/public}}
+FILES_FROM=${FILES_FROM:-$PUB}
 export GEXCC_DEB=${GEXCC_DEB:-$HOME/gex-sandbox/scratch/CC/debian}
 WORK=${GEX_DEMO_WORK:-$GEXCC_DEB/demo}
 ITEMS=$HERE/items.json
@@ -156,7 +159,7 @@ if it.get('lazypool'):
 for dst, src in it.get('files', {}).items():
     d = os.path.join(tree, dst.lstrip('/'))
     os.makedirs(os.path.dirname(d), exist_ok=True)
-    shutil.copy(os.path.join(pub, src), d)
+    shutil.copy(os.path.join(os.environ['FILES_FROM'], src), d)
     os.chmod(d, 0o755)
 PY
         python3 -I "$ROOT/debian/mkoverlay.py" --base "$WORK/base" --tree "$t" --name "$pkg" \
