@@ -274,3 +274,4 @@ pam       patch 0001-install-no-unix-update.patch | debian/libpam-modules-bin.in
 libbsd    patch 0001-no-nlist-on-wasm32.patch | a missing port: nlist() needs the target's ELF machine (src/local-elf.h), and a wasm32 program is no ELF image | nlist() and __fdnlist (no program can have an ELF symbol table to read here)
 libglu    meson b_lundef=false          | gex's GL driver (gex-gl) has no evaluators (glMap1f, glMap2f): libGLU's NURBS code leaves them to load time | GLU's NURBS curves and surfaces (an unbound function if called); nothing in the closure draws NURBS
 unbound   autoconf with_ssl=@SYSROOT@/usr | its configure looks for OpenSSL's headers on the build machine's paths (a cross build of Debian's has them there; ours are in the sysroot) | nothing
+unbound   autoconf with_libevent=@SYSROOT@/usr | as with_ssl: libevent's headers looked for on the build machine's paths | nothing

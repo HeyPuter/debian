@@ -10,6 +10,12 @@ CACHE=${DEB_CACHE:-$(dirname "$D")/deb}
 mkdir -p "$CACHE" "$D.nopool"
 roots=$(grep -v '^#' "$HERE/chroot-roots.txt" | tr -s ' \t\n' ',' | sed 's/^,//; s/,$//')
 python3 -I "$HERE/../mkrootfs.py" --arch amd64 --pool "$D.nopool" --cache "$CACHE" --out "$D" --extra "$roots"
+# All of glibc's iconv modules: the image keeps only the Unicode and a few
+# Western ones, and a build's msgfmt converts every .po file's charset
+# (e2fsprogs' fr.po is ISO-8859-1)
+libc6=$(ls "$CACHE"/pool/libc6_*_amd64.deb | tail -1)
+dpkg-deb --fsys-tarfile "$libc6" | tar -x -C "$D" --wildcards './usr/lib/x86_64-linux-gnu/gconv/*'
+sed -i '\|^path-exclude=/usr/lib/\*/gconv/\*.so$|d' "$D/etc/dpkg/dpkg.cfg.d/"*
 # What gcc's and the other maintainer scripts would have linked (alternatives
 # mkrootfs.py does not know): cc, c++, cpp.
 for l in cc:gcc c++:g++ cpp:cpp-14; do
