@@ -37,4 +37,4 @@ if [ "${GEX_KDE_XWAYLAND:-0}" = 1 ]; then
     done
     echo "gex-kde-session: X $DISPLAY up after $i s"
 fi
-exec dbus-run-session startplasma-x11
+exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf startplasma-x11
