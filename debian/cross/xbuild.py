@@ -34,7 +34,7 @@ PROFILES = {'cross', 'nocheck', 'nodoc', 'noudeb', 'noinsttest',
             # is libsystemd and libudev only), the no* ones drop language
             # bindings, and the pkg.SRC.* ones each source's optional extras
             'stage1', 'pkg.util-linux.noverity', 'nopython', 'nogir', 'nojava', 'noruby', 'nobiarch',
-            'pkg.openldap.noslapd', 'pkg.unbound.libonly', 'pkg.elfutils.nodebuginfod', 'pkg.systemd.nobpf',
+            'pkg.ncurses.noexamples', 'pkg.openldap.noslapd', 'pkg.unbound.libonly', 'pkg.elfutils.nodebuginfod', 'pkg.systemd.nobpf',
             'pkg.cyrus-sasl2.nogssapi', 'pkg.cyrus-sasl2.nosql', 'pkg.curl.noldap', 'pkg.glib2.0.nosysprof',
             'pkg.pango1.0.nosysprof', 'pkg.postgresql.nollvm', 'pkg.freetype.nodemos', 'pkg.sysprof.nogui',
             'pkg.ffmpeg.stage1', 'pkg.libwebp.notiff', 'pkg.openjpeg2.noapache', 'pkg.libsndfile.nompeg3',
@@ -45,6 +45,27 @@ ARCH = 'musl-linux-wasm32'
 # cross build's PKG:wasm32 of these)
 TOOLCHAIN = {'libc6-dev', 'libc-dev', 'linux-libc-dev', 'pkg-config', 'pkgconf', 'libstdc++-dev',
              'libstdc++-14-dev', 'libgcc-14-dev', 'libgcc-s1', 'libatomic1', 'libc++-dev', 'libc++abi-dev'}
+
+
+def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
+    """cuts.txt: {source: {'cut': set, 'drop': set, 'cmake': [(var, value)]}}."""
+    out = {}
+    for line in open(path):
+        line = line.split('|')[0].strip()
+        if not line or line.startswith('#'):
+            continue
+        src, kind, what = line.split()
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'env': []})
+        if kind == 'env':
+            c['env'].append(what)
+        elif kind == 'cmake':
+            c['cmake'].append(tuple(what.split('=', 1)))
+        else:
+            c[kind].add(what)
+    return out
+
+
+CUTS = load_cuts()
 
 
 def arch_matches(term):
@@ -112,8 +133,12 @@ def built_debs(work):
     return out
 
 
-def into_sysroot(deb, sysroot, done):
-    """Unpack a package's target-side files into the sysroot (once)."""
+def into_sysroot(deb, sysroot, done, chroot=None):
+    """Unpack a package's target-side files into the sysroot (once), and its
+    architecture-independent build files (aclocal macros, libtool's libltdl
+    copy) into the chroot's /usr/share as well, where the build machine's
+    autoreconf and libtoolize look: a Multi-Arch: same -dev package installs
+    them there in an ordinary cross build."""
     if deb in done:
         return
     done.add(deb)
@@ -126,6 +151,11 @@ def into_sysroot(deb, sysroot, done):
                 os.makedirs(os.path.join(sysroot, sub), exist_ok=True)
                 subprocess.run(['cp', '-a', '--remove-destination', s + '/.', os.path.join(sysroot, sub)],
                                check=True)
+        for sub in ('usr/share/aclocal', 'usr/share/libtool'):
+            s = os.path.join(t, sub)
+            if chroot and os.path.isdir(s):
+                os.makedirs(os.path.join(chroot, sub), exist_ok=True)
+                subprocess.run(['cp', '-a', '-n', s + '/.', os.path.join(chroot, sub)], check=True)
 
 
 def target_lib(name):
@@ -219,7 +249,8 @@ class Builder:
         else:
             ver, srcdir = self.fetch(name)
             control = open(os.path.join(srcdir, 'debian/control')).read()
-        deps = deps_of(control)
+        cut = CUTS.get(name, {}).get('cut', set())
+        deps = [(d, q) for d, q in deps_of(control) if d not in cut]
         debs, needs, lacks = self.target_closure([(d, q if q else '') for d, q in deps])
         return ver, srcdir, debs, needs, lacks
 
@@ -229,11 +260,23 @@ class Builder:
         if needs or lacks:
             return f'needs {" ".join(needs) or "-"}; chroot lacks {" ".join(lacks) or "-"}'
         for deb in debs:
-            into_sysroot(deb, self.sysroot, self.unpacked)
+            into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
         log = os.path.join(self.work, 'logs', f'{name}.log')
         env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(PROFILES))}" '
                f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
                'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
+        c = CUTS.get(name)
+        if c and c['drop']:
+            env += ' DH_OPTIONS="' + ' '.join(f'-N{b}' for b in sorted(c['drop'])) + '"'
+        if c:
+            env += ''.join(f' {e}' for e in c['env'])
+        if c and c['cmake']:
+            init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
+            os.makedirs(os.path.dirname(init), exist_ok=True)
+            with open(init, 'w') as f:
+                for var, val in c['cmake']:
+                    f.write(f'set({var} {val} CACHE BOOL "cuts.txt" FORCE)\n')
+            env += f' GEXCC_CMAKE_INIT={init}'
         cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,

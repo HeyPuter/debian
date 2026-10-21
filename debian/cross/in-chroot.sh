@@ -54,6 +54,11 @@ done
 # host's slot files, so builds in here count against the same limit
 slots=${GEXCC_SLOT_DIR:-${XDG_RUNTIME_DIR:-/tmp}/gexcc-slots-$(id -u)}
 mkdir -p "$slots"
+# debhelper names the cross pkg-config by its full path (PKG_CONFIG=
+# /usr/bin/TRIPLET-pkg-config), as crossbuild-essential installs it
+for t in "$E"/bin/*-pkg-config; do
+    [ -e "$t" ] && ln -sfn "$t" "$C/usr/bin/$(basename "$t")"
+done
 exec bwrap --unshare-user --uid 0 --gid 0 --unshare-ipc --unshare-pid --die-with-parent \
     --bind "$C" / --dev /dev --proc /proc --tmpfs /tmp \
     --ro-bind "$LLVM" "$LLVM" --tmpfs /usr/local/bin "${tools[@]}" \

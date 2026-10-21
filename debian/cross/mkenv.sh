@@ -43,6 +43,31 @@ for f in os.listdir(f'{host}/usr/share/dpkg'):
     if os.path.isfile(p):
         open(f'{dpkgdir}/{f}', 'wb').write(open(p, 'rb').read())
 PY
+# debhelper knows shared libraries by their ELF header. gexcc's are wasm side
+# modules: dh_makeshlibs takes them too (their SONAME comes from gexcc's
+# objdump), so a package's shlibs file is written as on any architecture
+dh=$E/host/usr/share/perl5/Debian/Debhelper/Dh_Lib.pm
+python3 -I - "$dh" "$E/host/usr/bin/dh_makeshlibs" <<'PY'
+import sys
+lib, mk = sys.argv[1:3]
+s = open(lib).read()
+if 'sub is_wasm_side_module' not in s:
+    s = s.replace('sub is_so_or_exec_elf_file {', '''sub is_wasm_side_module {
+	my ($file) = @_;
+	open(my $fd, '<:raw', $file) or return 0;
+	my $n = read($fd, my $buf, 4);
+	close($fd);
+	return ($n // 0) == 4 && $buf eq "\\0asm";
+}
+
+sub is_so_or_exec_elf_file {''', 1)
+    s = s.replace('\tis_so_or_exec_elf_file\n', '\tis_so_or_exec_elf_file\n\tis_wasm_side_module\n', 1)
+    open(lib, 'w').write(s)
+m = open(mk).read()
+m = m.replace('return if not is_so_or_exec_elf_file($_);',
+              'return if not is_so_or_exec_elf_file($_) and not is_wasm_side_module($_);', 1)
+open(mk, 'w').write(m)
+PY
 for t in gcc cc g++ c++ cpp clang clang++ ar ranlib nm objdump strings size readelf objcopy strip ld pkg-config; do
   src=$P/bin/$T-$t
   case $t in cpp) src=$P/bin/$T-gcc ;; ld) src=$P/bin/$T-ld ;; esac

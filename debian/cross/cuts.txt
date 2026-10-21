@@ -1,0 +1,40 @@
+# Packaging-level changes to the wasm32 cross build: no source is patched.
+# Everything Debian's own build profiles (xbuild.py PROFILES) cannot express
+# is here, one line each, so the whole list can be shown as it is:
+#
+#   SOURCE  cut DEP      the Build-Depends DEP is left out of SOURCE's build
+#                        (its configure finds no DEP and builds without it)
+#   SOURCE  drop BIN     the binary package BIN is not built (DH_OPTIONS -N)
+#   SOURCE  cmake VAR=V  CMake cache VAR forced to V, over what debian/rules
+#                        passes (gexcc's toolchain file, after -D)
+#   SOURCE  env VAR=V    VAR=V in the environment of SOURCE's build
+#
+# then `| why | what is lost`. `RUNTIME:` in what is lost marks something a
+# Plasma session uses at run time.
+
+qt6-base  cut libgtk-3-dev                | gtk+3.0 alone pulls ~300 sources (colord, sane, Qt5, PulseAudio, samba) | the GTK3 platform theme (GTK file dialogs and colours in Qt apps outside Plasma)
+qt6-base  drop qt6-gtk-platformtheme      | it is the GTK3 theme plugin | as above
+qt6-base  cmake FEATURE_gtk3=OFF          | debian/rules passes -DFEATURE_gtk3=ON | as above
+qt6-base  cut default-libmysqlclient-dev  | MySQL client library (mysql-defaults, mariadb) | the QMYSQL SQL driver
+qt6-base  drop libqt6sql6-mysql           | it is the QMYSQL driver | as above
+qt6-base  cmake FEATURE_sql_mysql=OFF     | debian/rules passes -DFEATURE_sql_mysql=ON | as above
+qt6-base  cut libpq-dev                   | PostgreSQL (postgresql-17 pulls systemtap, avahi, gtk3) | the QPSQL SQL driver
+qt6-base  drop libqt6sql6-psql            | it is the QPSQL driver | as above
+qt6-base  cmake FEATURE_sql_psql=OFF      | debian/rules passes -DFEATURE_sql_psql=ON | as above
+qt6-base  cut firebird-dev                | Firebird (firebird4.0, a database server) | the QIBASE SQL driver (debian/rules turns it off with the package)
+qt6-base  drop libqt6sql6-ibase           | it is the QIBASE driver | as above
+qt6-base  cut libcups2-dev                | cups pulls avahi, gnutls, krb5 and apache2 | printing from Qt apps (QPrintDialog lists no printers); there are no printers in the page
+qt6-base  cmake FEATURE_cups=OFF          | debian/rules passes -DFEATURE_cups=ON | as above
+qt6-base  cut libproxy-dev                | libproxy pulls NetworkManager, webkit2gtk and duktape | PAC/WPAD proxy discovery (Qt's system proxy reads the environment only)
+qt6-base  cmake FEATURE_libproxy=OFF      | debian/rules passes -DFEATURE_libproxy=ON | as above
+qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburcu, numactl) | Qt's LTTng trace points
+dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
+libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool
+harfbuzz  cut libchafa-dev                | chafa pulls tiff, libavif, aom, dav1d | hb-view's terminal (chafa) output
+libtool   cut gfortran                    | a Fortran compiler for the build machine, used only by libtool's own Fortran tests | nothing in libltdl (libtool's Fortran support is configured on the build machine)
+xxhash    env CC=wasm32-linux-musl-gcc    | debian/rules' install step runs make without the CC dh_auto_build passed, and relinks xxhsum with `cc` | nothing
+# libbsd does not build: src/local-elf.h (for nlist(3), reading a program's
+# ELF symbols) stops at "#error Unknown ELF machine type" on wasm32. Its two
+# users here take it for arc4random and have their own fallbacks:
+libxdmcp  cut libbsd-dev                  | libbsd does not build (above); configure falls back from arc4random_buf to getentropy | nothing
+expat     cut libbsd-dev                  | libbsd does not build (above); expat seeds its hash from getrandom instead of arc4random | nothing
