@@ -9,6 +9,12 @@
 # No GL: KWin's only X11 compositor is OpenGL, and the X server has none to
 # give it, so compositing is off; Qt Quick (plasmashell, the KCMs) draws in
 # software.
+# The compositor's socket, as gexc gave it, before the session's own
+# XDG_RUNTIME_DIR replaces the directory it is named in.
+case ${WAYLAND_DISPLAY:-} in
+    /*|'') wl=${WAYLAND_DISPLAY:-} ;;
+    *) wl=${XDG_RUNTIME_DIR:-/tmp}/$WAYLAND_DISPLAY ;;
+esac
 export HOME=/root USER=root LOGNAME=root SHELL=/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export XDG_RUNTIME_DIR=/run/user/0
@@ -22,8 +28,8 @@ export DISPLAY=${DISPLAY:-:0}
 n=${DISPLAY#:}
 if [ "${GEX_KDE_XWAYLAND:-0}" = 1 ]; then
     rm -f "/tmp/.X$n-lock" "/tmp/.X11-unix/X$n"
-    WAYLAND_DISPLAY=${GEX_KDE_WAYLAND:-wayland-0} XWAYLAND_NO_GLAMOR=1 \
-        Xwayland "$DISPLAY" -fullscreen ${GEX_KDE_GEOMETRY:+-geometry $GEX_KDE_GEOMETRY} -shm -ac -nolisten tcp -noreset > /tmp/xwayland.log 2>&1 &
+    WAYLAND_DISPLAY=$wl XWAYLAND_NO_GLAMOR=1 \
+        Xwayland "$DISPLAY" -fullscreen ${GEX_KDE_GEOMETRY:+-geometry $GEX_KDE_GEOMETRY} -shm -ac -nolisten tcp -noreset > "${GEX_KDE_LOG:-/tmp}/xwayland.log" 2>&1 &
     i=0
     while [ ! -S "/tmp/.X11-unix/X$n" ]; do
         [ $i -ge 600 ] && { echo "gex-kde-session: no X server after 600 s"; exit 1; }
