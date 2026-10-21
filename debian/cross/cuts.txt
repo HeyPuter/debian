@@ -15,6 +15,8 @@
 #   SOURCE  make VAR=V   make variable VAR=V over what the makefiles set
 #                        (MAKEFLAGS, so a command-line variable to every make)
 #   SOURCE  env VAR=V    VAR=V in the environment of SOURCE's build
+#   SOURCE  autoconf VAR=V  VAR=V in a site file configure reads after its
+#                        options (with_X=no over the rules' --with-X)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
 #                        applies it); only where packaging cannot do it
@@ -235,3 +237,18 @@ libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the HTML refere
 audit profile pkg.audit.noldap           | audit's LDAP is only for its z/OS remote plugin; openldap and cyrus-sasl2 need each other | audispd's z/OS remote plugin
 cyrus-sasl2 profile pkg.cyrus-sasl2.noldap | openldap and cyrus-sasl2 need each other; Debian's profile breaks the cycle on this side | SASL's ldapdb auxprop plugin (SASL accounts kept in LDAP)
 cyrus-sasl2 profile pkg.cyrus-sasl2.nosql | the SQL auxprop plugin pulls MariaDB, PostgreSQL and SQLite clients | SASL's SQL auxprop plugin
+icu       make PKGDATA_OPTS=-O $$(firstword $$(wildcard pkgdata.inc) $$(top_builddir)/data/icupkg.inc) -w | with no assembly type pkgdata writes an object file by copying the build machine's ELF header (genccode's match-arch), which gexcc's wasm objects are not; -w (--without-assembly) has it write the data as C, which ICU supports on every compiler. -O is each directory's own flags file (uconv's message library has pkgdata.inc, the data icupkg.inc), $$ so the rules' make passes it on unexpanded | nothing (the same data, compiled from C)
+# libselinux, then everything built with SELinux: libselinux's restorecon needs fts.h, which musl does not have (glibc's own); gex has no SELinux, so the libraries are built without it
+util-linux cut libselinux1-dev           | libselinux needs fts (glibc's, not in musl) | none (gex has no SELinux: SELinux contexts in mount, ls -Z and the like)
+util-linux autoconf with_selinux=no      | debian/rules passes --with-selinux | as above
+pam       cut libselinux1-dev            | as util-linux | pam_selinux and pam_sepermit (no SELinux in gex)
+pam       meson selinux=disabled         | the option is auto, with -Dauto_features=enabled from debhelper | as above
+systemd   cut libselinux1-dev            | as util-linux | none (stage1 builds libsystemd and libudev; their SELinux labelling)
+systemd   meson selinux=disabled         | debian/rules passes -Dselinux=enabled | as above
+glib2.0   cut libselinux1-dev            | as util-linux | GIO's SELinux context attribute (selinux::context)
+glib2.0   meson selinux=disabled         | debian/rules passes -Dselinux=enabled on Linux | as above
+dbus      cut libselinux1-dev            | as util-linux | dbus-daemon's SELinux access checks
+dbus      meson selinux=disabled         | debian/rules passes -Dselinux=enabled | as above
+policykit-1 cut libselinux1-dev          | as util-linux; polkit's build does not use it | none
+glib2.0   cut libelf-dev                 | elfutils needs fts, obstack and argp, which musl does not have (glibc's) | gresource's listing of resources inside ELF programs (wasm programs are not ELF anyway)
+glib2.0   meson libelf=disabled          | the option is auto, with -Dauto_features=enabled from debhelper (Debian's own udeb build disables it) | as above

@@ -18,6 +18,10 @@ esac
 export HOME=/root USER=root LOGNAME=root SHELL=/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export XDG_RUNTIME_DIR=/run/user/0
+# A fresh one each boot, as a login's is: a session that was killed leaves
+# its sockets, ICE authority and temporary files behind in a tree that is
+# kept (natively)
+case $wl in "$XDG_RUNTIME_DIR"/*) ;; *) rm -rf "$XDG_RUNTIME_DIR" ;; esac
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 export XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESKTOP_SESSION=plasma
 export XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share:/usr/share

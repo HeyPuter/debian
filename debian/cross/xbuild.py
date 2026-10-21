@@ -59,10 +59,10 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': []})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': []})
         if kind == 'profile':
             c['profile'].add(what)
-        elif kind in ('env', 'meson', 'make'):
+        elif kind in ('env', 'meson', 'make', 'autoconf'):
             c[kind].append(what)
         elif kind == 'cmake':
             c['cmake'].append(tuple(what.split('=', 1)))
@@ -336,6 +336,16 @@ class Builder:
             with open(init, 'w') as f:
                 f.write(''.join(f'-D{o}\n' for o in c['meson']))
             env += f' GEXCC_MESON_INIT={init}'
+        if c and c['autoconf']:
+            # a configure script reads CONFIG_SITE after its options, so a
+            # site file's with_X=no beats the rules' --with-X; this one
+            # reads gexcc's own first (a configure from autoconf 2.69 takes
+            # CONFIG_SITE as a single file)
+            site = os.path.join(self.work, 'autoconf-site', f'{name}.site')
+            os.makedirs(os.path.dirname(site), exist_ok=True)
+            with open(site, 'w') as f:
+                f.write(f'. {os.path.join(self.a.prefix, "share/gexcc/config.site")}\n' + ''.join(f'{v}\n' for v in c['autoconf']))
+            env += f' CONFIG_SITE={site}'
         cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
