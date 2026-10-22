@@ -60,6 +60,12 @@ done
 for t in cputable ostable abitable tupletable; do
     [ -e "$E/dpkg/$t" ] && extra+=(--ro-bind "$E/dpkg/$t" "/usr/share/dpkg/$t")
 done
+# the environment's chrpath and patchelf at the tools' own paths too:
+# debian/rules name /usr/bin/chrpath (exiv2's); the real ones move aside
+for t in chrpath patchelf; do
+    [ -e "$C/usr/bin/$t" ] && [ -e "$E/bin/$t" ] &&
+        extra+=(--ro-bind "$C/usr/bin/$t" "/usr/lib/gex-cross/$t" --ro-bind "$E/bin/$t" "/usr/bin/$t")
+done
 # gexcc-exec's machine-wide slots (at most GEXCC_SLOTS gexcs at once): the
 # host's slot files, so builds in here count against the same limit
 slots=${GEXCC_SLOT_DIR:-${XDG_RUNTIME_DIR:-/tmp}/gexcc-slots-$(id -u)}

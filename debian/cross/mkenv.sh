@@ -105,6 +105,9 @@ chmod +x "$E/bin/meson"
 # real chrpath's
 cat > "$E/bin/chrpath" <<'SH'
 #!/bin/sh
+# (in-chroot.sh binds this over /usr/bin/chrpath, and the real one here)
+real=/usr/lib/gex-cross/chrpath
+[ -x "$real" ] || real=/usr/bin/chrpath
 case " $* " in
 *" -d "*|*" --delete "*)
     for f; do
@@ -113,17 +116,20 @@ case " $* " in
         if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
             continue
         fi
-        /usr/bin/chrpath -d "$f" || exit
+        "$real" -d "$f" || exit
     done
     exit 0 ;;
 esac
-exec /usr/bin/chrpath "$@"
+exec "$real" "$@"
 SH
 chmod +x "$E/bin/chrpath"
 # patchelf --remove-rpath (libcap2's test programs), likewise: a gexcc
 # container has no dynamic section for patchelf to edit
 cat > "$E/bin/patchelf" <<'SH'
 #!/bin/sh
+# (in-chroot.sh binds this over /usr/bin/patchelf, and the real one here)
+real=/usr/lib/gex-cross/patchelf
+[ -x "$real" ] || real=/usr/bin/patchelf
 case " $* " in
 *" --remove-rpath "*)
     for f; do
@@ -132,11 +138,11 @@ case " $* " in
         if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
             continue
         fi
-        /usr/bin/patchelf --remove-rpath "$f" || exit
+        "$real" --remove-rpath "$f" || exit
     done
     exit 0 ;;
 esac
-exec /usr/bin/patchelf "$@"
+exec "$real" "$@"
 SH
 chmod +x "$E/bin/patchelf"
 # dpkg-query: a query naming a package of the target architecture

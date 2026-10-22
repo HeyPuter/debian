@@ -297,3 +297,4 @@ libcap2   make PSXMAGICOBJ=               | as above | as above
 libcap2   make MAGIC=                     | as above (the entry point the runnable library starts at) | as above
 libcap2   patch 0001-psx-wasm32.patch      | a missing port: libpsx's own rt_sigaction structure lists the architectures it knows, and builds for no other (wasm32's is the generic one, as aarch64's) | nothing
 libverto  autoconf with_libevent=no       | Debian's build has no libevent-dev, so it builds no libevent module and packages none; ours finds libevent in the sysroot and dh_missing stops at the unpackaged module | nothing (Debian ships no libverto libevent module)
+tiff      cut liblerc-dev                 | lerc's debian/rules cleans its Python binding with pybuild, which has no wasm32 sysconfig data (no target Python) | LERC-compressed TIFF images (a geospatial raster codec); nothing in a Plasma session
