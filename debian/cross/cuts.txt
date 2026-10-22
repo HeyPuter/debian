@@ -315,3 +315,5 @@ libgudev  exclude gtk-doc/html/gudev     | libgudev-1.0-dev lists the reference,
 libdrm    exclude amdgpu_test            | the sysroot has CUnit (Debian's build has none, so builds no amdgpu_test and packages none); dh_missing stops at the unpackaged program | nothing (Debian ships no amdgpu_test)
 libva     meson with_glx=no              | libva-glx calls GLX functions the GL provider's libGL does not have (glXQueryContext) | VA-API's GLX interop (libva-glx2); the DRM and X11 paths remain
 libva     drop libva-glx2                | it is the GLX interop library | as above
+krb5      autoconf krb5_cv_attr_constructor_destructor=yes,yes | configure runs a program to see constructor and destructor attributes work, and stops when cross compiling; gexcc runs both (wasm-ld's constructors, destructors through __cxa_atexit) | nothing
+libinput  meson debug-gui=false          | 1.28 builds debug-gui by default (true, not auto); its GTK3 is cut above | as the libgtk-3-dev cut
