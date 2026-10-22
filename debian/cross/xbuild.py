@@ -317,6 +317,15 @@ class Builder:
                 cut = c.get('cut', set()) | c.get('drop', set())
                 todo += [(n, None) for n in clause_names(f.get('Depends', '')) if n not in cut]
                 continue
+            if build_side and q is None and dep in self.ours and not (
+                    p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign')):
+                # a tool a target package depends on (hfst-ospell-dev on
+                # hfst-ospell): the tool is not unpacked, but the libraries
+                # it depends on are the target's (libhfstospell11, which the
+                # -dev package's .so link points at)
+                f = dict(l.split(': ', 1) for l in subprocess.run(['dpkg-deb', '-f', self.ours[dep], 'Depends'],
+                                                                  capture_output=True, text=True).stdout.splitlines() if ': ' in l)
+                todo += [(n, None) for n in clause_names(f.get('Depends', '')) if target_lib(n)]
             if build_side or (p is None and dep in self.chroot_has):
                 # an Arch: all -dev (headers, or a transitional name) goes
                 # to the sysroot only; anything else build-side runs there

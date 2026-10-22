@@ -90,7 +90,7 @@ libffi      cut dejagnu       | the test suite's runner, not guarded by nocheck 
 libgudev  cut libgirepository1.0-dev      | a target gobject-introspection build runs wasm32 programs during the build (cross-exe-wrapper) and pulls cairo and python3 | the GUdev GObject introspection data (gir1.2-gudev-1.0): GUdev from Python or GJS; nothing in a Plasma session
 libgudev  drop gir1.2-gudev-1.0           | it is the introspection data | as above
 libgudev  meson introspection=disabled    | debian/rules passes -Dintrospection=enabled | as above
-libgudev  exclude .gir                    | libgudev-1.0-dev lists the .gir | as above
+libgudev  exclude gir-1.0                 | libgudev-1.0-dev lists usr/share/gir-1.0/ | as above
 harfbuzz  cut libgirepository1.0-dev      | as libgudev: a target gobject-introspection | HarfBuzz's introspection data (gir1.2-harfbuzz-0.0); nothing in a Plasma session
 harfbuzz  cut gir1.2-freetype2-2.0-dev    | the introspection build's inputs | as above
 harfbuzz  cut gir1.2-gobject-2.0-dev      | as above | as above
@@ -311,4 +311,7 @@ libverto  autoconf with_libevent=no       | Debian's build has no libevent-dev, 
 tiff      cut liblerc-dev                 | lerc's debian/rules cleans its Python binding with pybuild, which has no wasm32 sysconfig data (no target Python) | LERC-compressed TIFF images (a geospatial raster codec); nothing in a Plasma session
 tiff      exclude share/man               | the nodoc profile builds no manual pages (they need sphinx), but the .install files still list their directories | the manual pages
 libgudev  meson gtk_doc=false            | gtk-doc's helper runs the build machine's python3 with the target libraries' directories in LD_LIBRARY_PATH (the sysroot's libz.so.1 is wasm) | the HTML reference (libgudev-1.0-doc, Architecture: all, not built here)
+libgudev  exclude gtk-doc/html/gudev     | libgudev-1.0-dev lists the reference, which gtk_doc=false does not make | as above
 libdrm    exclude amdgpu_test            | the sysroot has CUnit (Debian's build has none, so builds no amdgpu_test and packages none); dh_missing stops at the unpackaged program | nothing (Debian ships no amdgpu_test)
+libva     meson with_glx=no              | libva-glx calls GLX functions the GL provider's libGL does not have (glXQueryContext) | VA-API's GLX interop (libva-glx2); the DRM and X11 paths remain
+libva     drop libva-glx2                | it is the GLX interop library | as above

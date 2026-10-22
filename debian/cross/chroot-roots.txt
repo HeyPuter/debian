@@ -93,3 +93,5 @@ javahelper
 zip
 # systemd (forky)
 dh-cruft
+# krb5 (compile_et, mk_cmds: scripts that write C)
+comerr-dev ss-dev
