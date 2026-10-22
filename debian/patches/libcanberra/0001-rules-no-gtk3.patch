@@ -1,0 +1,15 @@
+debian/rules only (packaging): the GTK3 module's install makes the
+gnome-settings-daemon gtk-modules directory the rules copy a .desktop file
+into; without GTK3 (cuts.txt) the copy needs the directory made, as the
+rules already do for unity-settings-daemon's.
+
+--- a/debian/rules
++++ b/debian/rules
+@@ -33,6 +33,7 @@
+ 		--exclude=usr/lib/$(DEB_HOST_MULTIARCH)/libcanberra-0.30
+ 
+ execute_before_dh_install:
++	mkdir -p debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/gnome-settings-daemon-3.0/gtk-modules
+ 	cp -a src/canberra-gtk-module.desktop \
+ 	      debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/gnome-settings-daemon-3.0/gtk-modules/canberra-gtk3-module.desktop
+ 	mkdir -p debian/tmp/usr/lib/unity-settings-daemon-1.0/gtk-modules
