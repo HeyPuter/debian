@@ -334,3 +334,4 @@ policykit-1 drop gir1.2-polkit-1.0       | it is the introspection data | as abo
 policykit-1 meson introspection=false    | debian/rules passes -Dintrospection=true | as above
 policykit-1 make configure_flags=-Dgtk_doc=false -Dsession_tracking=logind | in a cross build the rules add --cross-file=wasm32-linux-musl-gobject-introspection.ini, which only a target gobject-introspection installs; these are the rest of the rules' Linux flags | as above
 policykit-1 exclude .gir                 | the -dev packages list their .gir | as above
+p11-kit   meson systemd=disabled          | the option is auto and finds the sysroot's systemd (not a Build-Depends: Debian's build has none), whose user units debian/*.install does not list | nothing (Debian's p11-kit has no socket activation either)
