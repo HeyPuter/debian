@@ -1,0 +1,20 @@
+A missing port (source): the dlopen notes are ELF notes, written in ELF
+assembler directives; a wasm object has no notes, so none is emitted.
+
+--- a/src/systemd/sd-dlopen.h
++++ b/src/systemd/sd-dlopen.h
+@@ -160,6 +160,14 @@
+         );                                                                                                                      \
+         __asm__ volatile ("" : : "r" (&__sd_dlopen_anchor_##tag))
+ 
++#if !defined(__ELF__)
++/* An object format without ELF notes (wasm): there is no note to emit. */
++#  undef _SD_ELF_NOTE_DLOPEN
++#  define _SD_ELF_NOTE_DLOPEN(json) __asm__("")
++#  undef _SD_ELF_NOTE_DLOPEN_ANCHORED
++#  define _SD_ELF_NOTE_DLOPEN_ANCHORED(tag, json) do {} while (0)
++#endif
++
+ #define _SD_SONAME_ARRAY1(a) "[\\\"" a "\\\"]"
+ #define _SD_SONAME_ARRAY2(a, b) "[\\\"" a "\\\",\\\"" b "\\\"]"
+ #define _SD_SONAME_ARRAY3(a, b, c) "[\\\"" a "\\\",\\\"" b "\\\",\\\"" c "\\\"]"

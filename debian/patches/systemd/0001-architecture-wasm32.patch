@@ -1,0 +1,44 @@
+A missing port (source): systemd names the architectures it knows, and builds
+for no other. wasm32 joins the list: its uname machine, its name, and its
+multiarch tuple.
+
+--- a/src/basic/architecture.h
++++ b/src/basic/architecture.h
+@@ -43,6 +43,7 @@
+         ARCHITECTURE_TILEGX,
+         ARCHITECTURE_X86,
+         ARCHITECTURE_X86_64,
++        ARCHITECTURE_WASM32,
+         _ARCHITECTURE_MAX,
+         _ARCHITECTURE_INVALID = -EINVAL,
+ } Architecture;
+@@ -238,6 +239,9 @@
+ #    define native_architecture() ARCHITECTURE_ARC
+ #    define LIB_ARCH_TUPLE "arc-linux"
+ #  endif
++#elif defined(__wasm32__)
++#  define native_architecture() ARCHITECTURE_WASM32
++#  define LIB_ARCH_TUPLE "wasm32-linux-musl"
+ #else
+ #  error "Please register your architecture here!"
+ #endif
+--- a/src/basic/architecture.c
++++ b/src/basic/architecture.c
+@@ -116,6 +116,9 @@
+ #elif defined(__tilegx__)
+                 { "tilegx",     ARCHITECTURE_TILEGX   },
+ 
++#elif defined(__wasm32__)
++                { "wasm32",     ARCHITECTURE_WASM32   },
++
+ #else
+ #  error "Please register your architecture here!"
+ #endif
+@@ -172,6 +175,7 @@
+         [ARCHITECTURE_SPARC64]     = "sparc64",
+         [ARCHITECTURE_SPARC]       = "sparc",
+         [ARCHITECTURE_TILEGX]      = "tilegx",
++        [ARCHITECTURE_WASM32]      = "wasm32",
+ };
+ 
+ DEFINE_STRING_TABLE_LOOKUP(architecture, Architecture);

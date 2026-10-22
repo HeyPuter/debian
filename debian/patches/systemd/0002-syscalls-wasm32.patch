@@ -1,0 +1,80 @@
+A missing port (source): wasm32's system call numbers are i386's (musl's
+wasm32 port numbers them so); systemd's table of newer calls names them
+per architecture.
+
+--- a/src/include/override/sys/syscall.h
++++ b/src/include/override/sys/syscall.h
+@@ -23,7 +23,7 @@
+ #  elif defined(__alpha__)
+ #  elif defined(__arc__) || defined(__tilegx__)
+ #  elif defined(__arm__)
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #  elif defined(__ia64__)
+ #  elif defined(__loongarch_lp64)
+ #  elif defined(__m68k__)
+@@ -63,7 +63,7 @@
+ #    define systemd_NR_fchmodat2 452
+ #  elif defined(__arm__)
+ #    define systemd_NR_fchmodat2 452
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_fchmodat2 452
+ #  elif defined(__ia64__)
+ #    define systemd_NR_fchmodat2 1476
+@@ -133,7 +133,7 @@
+ #    define systemd_NR_kexec_file_load 294
+ #  elif defined(__arm__)
+ #    define systemd_NR_kexec_file_load 401
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_kexec_file_load -1
+ #  elif defined(__ia64__)
+ #    define systemd_NR_kexec_file_load -1
+@@ -203,7 +203,7 @@
+ #    define systemd_NR_open_tree_attr 467
+ #  elif defined(__arm__)
+ #    define systemd_NR_open_tree_attr 467
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_open_tree_attr 467
+ #  elif defined(__ia64__)
+ #    define systemd_NR_open_tree_attr -1
+@@ -273,7 +273,7 @@
+ #    define systemd_NR_quotactl_fd 443
+ #  elif defined(__arm__)
+ #    define systemd_NR_quotactl_fd 443
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_quotactl_fd 443
+ #  elif defined(__ia64__)
+ #    define systemd_NR_quotactl_fd 1467
+@@ -343,7 +343,7 @@
+ #    define systemd_NR_removexattrat 466
+ #  elif defined(__arm__)
+ #    define systemd_NR_removexattrat 466
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_removexattrat 466
+ #  elif defined(__ia64__)
+ #    define systemd_NR_removexattrat -1
+@@ -413,7 +413,7 @@
+ #    define systemd_NR_setxattrat 463
+ #  elif defined(__arm__)
+ #    define systemd_NR_setxattrat 463
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_setxattrat 463
+ #  elif defined(__ia64__)
+ #    define systemd_NR_setxattrat -1
+--- a/src/include/override/sys/generate-syscall.py
++++ b/src/include/override/sys/generate-syscall.py
+@@ -71,7 +71,7 @@
+ #    define systemd_NR_{syscall} {nr_arc}
+ #  elif defined(__arm__)
+ #    define systemd_NR_{syscall} {nr_arm}
+-#  elif defined(__i386__)
++#  elif defined(__i386__) || defined(__wasm32__)
+ #    define systemd_NR_{syscall} {nr_i386}
+ #  elif defined(__ia64__)
+ #    define systemd_NR_{syscall} {nr_ia64}

@@ -25,6 +25,8 @@
 #                        musl-linux-wasm32, as a port adds itself
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
 #                        applies it); only where packaging cannot do it
+#   SOURCE  suite S      SOURCE's package comes from Debian's suite S (a later
+#                        release that has the port) instead of trixie
 #   SOURCE  headers BIN  SOURCE is not built: its binary package BIN, Debian's
 #                        own build-machine deb, is repacked for the target
 #                        (refused if it holds anything compiled); a source
@@ -281,6 +283,9 @@ db5.3     profile pkg.db5.3.notcl      | its install runs tcltk-depends, a tool 
 systemd   meson nss-myhostname=false     | musl has no NSS to load the module | the NSS modules (gex's libc never loads one)
 systemd   meson nss-mymachines=disabled  | as above | as above
 systemd   meson nss-resolve=disabled     | as above | as above
+systemd   suite forky                    | systemd 257 builds on glibc only; 258 and later build on musl (meson libc=musl, their own kernel headers) | libsystemd's fibers (sd-future: gexcc's libucontext cannot switch stacks, so they fail with ENOSYS); libsystemd and libudev are 262's (their ABI is stable)
+systemd   meson libc=musl                | debian/rules builds for glibc (the default) | nothing
+systemd   exclude 50-pid-max.conf        | debian/systemd.install names it on every architecture but the 32-bit ones it lists, and wasm32 is not listed; meson installs it on 64-bit ones only | nothing (wasm32 is 32-bit: no such file is made)
 systemd   meson nss-systemd=false        | as above | as above
 systemd   drop libnss-myhostname         | as above | as above
 systemd   drop libnss-mymachines         | as above | as above
@@ -299,6 +304,9 @@ draco     cmake DRACO_TINYGLTF_PATH=@SYSROOT@/usr/include/stb | debian/rules nam
 gettext   exclude preloadable_libintl     | gettext builds the LD_PRELOAD copy of libintl only on glibc (intl/configure.ac: GLIBC2); musl has its own gettext | preloadable_libintl.so, which traces a program's gettext calls by LD_PRELOAD
 libcap2   make PAM_CAP=yes                | Make.Rules builds pam_cap only if the build machine has /usr/include/security/pam_modules.h; the target's PAM headers are in the sysroot | nothing
 libcap2   patch 0001-psx-wasm32.patch      | a missing port: libpsx's own rt_sigaction structure lists the architectures it knows, and builds for no other (wasm32's is the generic one, as aarch64's) | nothing
+systemd   patch 0001-architecture-wasm32.patch | a missing port: systemd lists the architectures it knows (uname machine, name, multiarch tuple) and builds for no other | nothing
+systemd   patch 0002-syscalls-wasm32.patch      | a missing port: systemd numbers the system calls newer than the C library's per architecture; wasm32's are i386's (musl's wasm32 port) | nothing
+systemd   patch 0003-dlopen-notes-elf-only.patch | a missing port: the dlopen notes (which libraries a binary may dlopen, for packaging tools) are ELF notes in ELF assembler; a wasm object has none | the .note.dlopen notes (read by packaging tools; nothing reads them at run time)
 libverto  autoconf with_libevent=no       | Debian's build has no libevent-dev, so it builds no libevent module and packages none; ours finds libevent in the sysroot and dh_missing stops at the unpackaged module | nothing (Debian ships no libverto libevent module)
 tiff      cut liblerc-dev                 | lerc's debian/rules cleans its Python binding with pybuild, which has no wasm32 sysconfig data (no target Python) | LERC-compressed TIFF images (a geospatial raster codec); nothing in a Plasma session
 tiff      exclude share/man               | the nodoc profile builds no manual pages (they need sphinx), but the .install files still list their directories | the manual pages

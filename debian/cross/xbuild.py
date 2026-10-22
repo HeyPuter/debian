@@ -63,7 +63,7 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set()})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set(), 'suite': set()})
         if kind == 'profile':
             c['profile'].add(what)
         elif kind in ('env', 'meson', 'make', 'autoconf'):
@@ -87,6 +87,12 @@ def add_arch(control, binaries):
         if m and m.group(1) in binaries:
             stanzas[i] = re.sub(r'(?m)^(Architecture:(?!.*\b' + re.escape(ARCH) + r'\b).*)$', r'\1 ' + ARCH, st)
     open(control, 'w').write('\n\n'.join(stanzas))
+
+
+def suite_of(src):
+    """cuts.txt's `suite S`: SOURCE comes from Debian's suite S, not
+    trixie (a later release that has the port)."""
+    return next(iter(CUTS.get(src, {}).get('suite', ())), 'trixie')
 
 
 def profiles_of(src):
@@ -273,6 +279,7 @@ class Builder:
 
     def fetch(self, name):
         r = subprocess.run([sys.executable, '-I', os.path.join(HERE, '..', 'debsrc.py'), '--cache', self.cache,
+                            '--suite', suite_of(name),
                             '--into', os.path.join(self.work, 'src'), name], capture_output=True, text=True)
         if r.returncode:
             raise RuntimeError(f'fetch: {r.stderr.strip()[-300:]}')
@@ -386,8 +393,11 @@ class Builder:
             return None, None, [], [], []
         if index:
             if not hasattr(self, 'sources'):
-                self.sources = debsrc.sources(self.cache, 'trixie')
-            st = self.sources.get(name)
+                self.sources = {}
+            suite = suite_of(name)
+            if suite not in self.sources:
+                self.sources[suite] = debsrc.sources(self.cache, suite)
+            st = self.sources[suite].get(name)
             if st is None:
                 raise RuntimeError(f'no source package {name}')
             ver, srcdir = st['Version'], None
