@@ -1,0 +1,25 @@
+A missing port (source): psx's own rt_sigaction structure lists the
+architectures it knows. wasm32's (gex's kernel, musl's k_sigaction) is the
+generic one with a restorer field the kernel does not use, as aarch64's.
+
+--- a/psx/psx_calls.c
++++ b/psx/psx_calls.c
+@@ -48,7 +48,8 @@
+     || defined(__mips__) || defined(__loongarch__) \
+     || defined(__powerpc__) || defined(__s390__) || defined(__riscv) \
+     || defined(__alpha__) || defined(__hppa__) || defined(__sh__) \
+-    || defined(__m68k__) || defined(__sparc__)
++    || defined(__m68k__) || defined(__sparc__) \
++    || defined(__wasm32__)
+ 
+ #undef _NSIG
+ #undef _NSIG_BPW
+@@ -75,7 +76,7 @@
+ #endif /* architectures that use SA_RESTORER */
+ 
+ #if defined(SA_RESTORER) \
+-    || defined(__aarch64__) \
++    || defined(__aarch64__) || defined(__wasm32__) \
+     || defined(__m68k__) || defined(__sh__) || defined(__sparc__) \
+     || defined(__s390__) || defined(__sparc__)
+ /* field defined */

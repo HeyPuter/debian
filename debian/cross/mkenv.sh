@@ -120,6 +120,25 @@ esac
 exec /usr/bin/chrpath "$@"
 SH
 chmod +x "$E/bin/chrpath"
+# patchelf --remove-rpath (libcap2's test programs), likewise: a gexcc
+# container has no dynamic section for patchelf to edit
+cat > "$E/bin/patchelf" <<'SH'
+#!/bin/sh
+case " $* " in
+*" --remove-rpath "*)
+    for f; do
+        case $f in -*) continue ;; esac
+        [ -f "$f" ] || continue
+        if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
+            continue
+        fi
+        /usr/bin/patchelf --remove-rpath "$f" || exit
+    done
+    exit 0 ;;
+esac
+exec /usr/bin/patchelf "$@"
+SH
+chmod +x "$E/bin/patchelf"
 # dpkg-query: a query naming a package of the target architecture
 # (PKG:musl-linux-wasm32) is answered from the sysroot's package database,
 # which xbuild keeps as it unpacks the target's packages there; any other,
