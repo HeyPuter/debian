@@ -188,6 +188,22 @@ def into_sysroot(deb, sysroot, done, chroot=None):
                 os.makedirs(os.path.join(sysroot, sub), exist_ok=True)
                 subprocess.run(['cp', '-a', '--remove-destination', s + '/.', os.path.join(sysroot, sub)],
                                check=True)
+        # A CMake package file that names the headers by an absolute
+        # /usr/include (double-conversion's, written by Debian's packaging
+        # rather than CMake's export): the sysroot's, as pkg-config's
+        # sysroot prefixes a .pc file's paths.
+        for dirpath, _, files in os.walk(t):
+            for n in files:
+                if not n.endswith('.cmake'):
+                    continue
+                rel = os.path.relpath(os.path.join(dirpath, n), t)
+                f = os.path.join(sysroot, rel)
+                if not os.path.isfile(f) or os.path.islink(f):
+                    continue
+                text = open(f, errors='surrogateescape').read()
+                fixed = re.sub(r'(?<=["; ])/usr/include(?=[/";\s])', sysroot + '/usr/include', text)
+                if fixed != text:
+                    open(f, 'w', errors='surrogateescape').write(fixed)
         for sub in ('usr/share/aclocal', 'usr/share/libtool'):
             s = os.path.join(t, sub)
             if chroot and os.path.isdir(s):
