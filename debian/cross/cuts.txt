@@ -157,6 +157,7 @@ libksysguard exclude ksgrd_network_helper | the helper is not built without libp
 libksysguard exclude ksysguard_plugin_network | the plugin is not built without libpcap | as above
 alsa-lib  cut libpython3-dev              | the target's Python is not built; Debian's rules enable the mixer Python module (--enable-mixer-pymods) | the Python mixer module, smixer-python.so in libasound2-plugin-smixer
 alsa-lib  autoconf enable_python=no      | as above: without it configure takes the build machine's python3-config include flags | as above
+alsa-lib  drop libasound2-plugin-smixer  | Debian's build puts only the Python mixer module in it (the other simple-mixer modules are off) | as above
 kf6-solid cut libimobiledevice-dev        | libimobiledevice and libplist build Python bindings with no knob, which pull CPython and through it systemtap, avahi and gtk3 | Solid's iPhone/iPad backend (no USB devices in the page)
 kf6-solid cut libplist-dev                | as above | as above
 zxing-cpp cut python3-dev                 | the Python module, which pulls CPython (as above) | python3-zxing-cpp (nothing in a Plasma session)
