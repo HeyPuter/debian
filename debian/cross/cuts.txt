@@ -317,3 +317,5 @@ libva     meson with_glx=no              | libva-glx calls GLX functions the GL 
 libva     drop libva-glx2                | it is the GLX interop library | as above
 krb5      autoconf krb5_cv_attr_constructor_destructor=yes,yes | configure runs a program to see constructor and destructor attributes work, and stops when cross compiling; gexcc runs both (wasm-ld's constructors, destructors through __cxa_atexit) | nothing
 libinput  meson debug-gui=false          | 1.28 builds debug-gui by default (true, not auto); its GTK3 is cut above | as the libgtk-3-dev cut
+krb5      autoconf ac_cv_func_regcomp=yes | configure runs a program to see regcomp works, and stops when cross compiling; musl's does | nothing
+krb5      autoconf ac_cv_printf_positional=yes | configure runs a program to see printf takes positional arguments (%1$s), and stops when cross compiling; musl's does | nothing

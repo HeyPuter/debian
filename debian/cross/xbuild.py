@@ -325,7 +325,9 @@ class Builder:
                 # -dev package's .so link points at)
                 # (one field asked for, dpkg-deb -f prints only its value)
                 d = subprocess.run(['dpkg-deb', '-f', self.ours[dep], 'Depends'], capture_output=True, text=True).stdout
-                todo += [(n, None) for n in clause_names(d.strip()) if target_lib(n)]
+                # shared libraries only (a soname's package: libfoo11,
+                # libbar2t64), not what a tool runs on (libpython3.13-stdlib)
+                todo += [(n, None) for n in clause_names(d.strip()) if re.fullmatch(r'lib.*\d(t64)?', n)]
             if build_side or (p is None and dep in self.chroot_has):
                 # an Arch: all -dev (headers, or a transitional name) goes
                 # to the sysroot only; anything else build-side runs there
