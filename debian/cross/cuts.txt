@@ -335,3 +335,5 @@ policykit-1 meson introspection=false    | debian/rules passes -Dintrospection=t
 policykit-1 make configure_flags=-Dgtk_doc=false -Dsession_tracking=logind | in a cross build the rules add --cross-file=wasm32-linux-musl-gobject-introspection.ini, which only a target gobject-introspection installs; these are the rest of the rules' Linux flags | as above
 policykit-1 exclude .gir                 | the -dev packages list their .gir | as above
 p11-kit   autoconf with_systemd=no        | configure looks for libsystemd itself and finds the sysroot's systemd (not a Build-Depends: Debian's build has none), whose user units debian/*.install does not list | nothing (Debian's p11-kit has no socket activation either)
+libgit2   cut libkrb5-dev                | its FindGSSAPI runs krb5-config, a script of the target's krb5 that names the target's headers by absolute paths | Kerberos (GSSAPI) authentication of git over HTTP and SSH (kate's git plugin)
+libgit2   cmake USE_GSSAPI=OFF           | debian/rules passes -DUSE_GSSAPI=ON | as above
