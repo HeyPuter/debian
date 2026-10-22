@@ -23,12 +23,28 @@ cp "$HERE/page/index.html" "$OUT/index.html"
 if [ -n "${UNITS:-}" ]; then
     rm -rf "$OUT/units"
     cp -alL "$UNITS/build/cgen" "$OUT/units"
-    python3 -I - "$UNITS/build/build.json" "$OUT/site.json" <<'PY'
-import json, sys
+    python3 -I - "$UNITS/build/build.json" "$OUT/site.json" "$UNITS/build/rootfs" <<'PY'
+import json, os, sys
 m = json.load(open(sys.argv[1]))
 units = [i for i in m['images'] if i['kind'] == 'elf-unit']
 names = sorted({i['path'].rsplit('/', 1)[1] for i in units})
-pins = [f"{p['path']}@{p['base']}" for p in m['pins']]
+root = sys.argv[3]
+def span(path):
+    # the object's extent from its first PT_LOAD, rounded to 64 KiB with 64 KiB
+    # of slack, as the eject's layout gives each its share: told none, the
+    # page's placement table puts the next object inside it
+    import struct
+    with open(os.path.join(root, path.lstrip('/')), 'rb') as f:
+        h = f.read(64)
+        phoff, phentsize, phnum = struct.unpack_from('<Q', h, 0x20)[0], *struct.unpack_from('<HH', h, 0x36)
+        f.seek(phoff)
+        ph = f.read(phentsize * phnum)
+    loads = [struct.unpack_from('<IIQQQQQ', ph, i * phentsize) for i in range(phnum)]
+    loads = [l for l in loads if l[0] == 1]
+    lo = min(l[3] for l in loads) & ~0xfff
+    hi = max(l[3] + l[6] for l in loads)
+    return ((hi - lo + 0xffff) & ~0xffff) + 0x10000
+pins = [f"{p['path']}@{p['base']}+{span(p['path']):#x}" for p in m['pins']]
 switches = {'cgen': '1', 'cgenurl': 'units', 'elfunits': ','.join(names), 'pins': ','.join(pins)}
 json.dump({'tar': ['kde.tar'], 'env': [], 'switches': switches}, open(sys.argv[2], 'w'), indent=1)
 print(f'units: {len(units)} objects, {len(pins)} pins')

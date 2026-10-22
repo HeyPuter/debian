@@ -46,6 +46,8 @@ globalThis.__kde = { phase: 'loading', out: '', t0 };
 const app = await start({
   container: document.getElementById('desk'),
   size: q.get('size') || 'fit',
+  // any other parameter is a runtime switch (?strace=1&stracepid=23, ?heartbeat=N)
+  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size')),
   baseUrl: new URL('./', location.href),
   hostx: 'rootful',
   ready: 'frame',
