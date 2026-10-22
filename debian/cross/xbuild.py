@@ -490,7 +490,13 @@ class Builder:
             return f'build (log {log}): ' + ' | '.join(tail)
         parent = os.path.dirname(srcdir)
         made = []
-        for f in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}_*.deb')):
+        # the .changes names every .deb the build made, a binary package
+        # with a version of its own too (e2fsprogs' comerr-dev 2.1-1.47.2-3)
+        debs = set(glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}_*.deb')))
+        for ch in glob.glob(os.path.join(parent, f'{name}_*.changes')):
+            debs |= {os.path.join(parent, m) for m in re.findall(r'(?m)^ [0-9a-f]{64} \d+ (\S+\.deb)$', open(ch).read())
+                     if os.path.exists(os.path.join(parent, m))}
+        for f in sorted(debs):
             shutil.move(f, os.path.join(self.work, 'debs', os.path.basename(f)))
             made.append(os.path.basename(f))
         for f in glob.glob(os.path.join(parent, f'{name}_*.buildinfo')) + glob.glob(os.path.join(parent, f'{name}_*.changes')):
