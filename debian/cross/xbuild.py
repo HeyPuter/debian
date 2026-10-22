@@ -260,6 +260,52 @@ def clause_names(field):
     return out
 
 
+def toolchain(prefix):
+    """What PREFIX's gexcc was installed from (install.sh's installed-from):
+    {'gex': commit, 'gex-repo': path, 'musl': commit}."""
+    try:
+        return dict(l.split(None, 1) for l in open(os.path.join(prefix, 'lib/gexcc/installed-from')).read().split('\n') if ' ' in l)
+    except FileNotFoundError:
+        return {}
+
+
+def rebuild_forcing(path=os.path.join(HERE, 'rebuild-after.txt')):
+    """rebuild-after.txt: [(commit, log pattern or None)], the gexcc fixes a
+    package built before must be built again after (a fix that changes what
+    a successful build makes), each optionally only for builds whose log
+    shows the fix's case."""
+    out = []
+    for line in open(path):
+        line = line.split('|')[0].strip()
+        if line and not line.startswith('#'):
+            w = line.split(None, 1)
+            out.append((w[0], re.compile(w[1]) if len(w) > 1 else None))
+    return out
+
+
+def stale(built_with, log, fixes, repo):
+    """The first of FIXES that applies to a build with the toolchain commit
+    BUILT_WITH (a build that recorded none predates them all) and its LOG,
+    and that the commit does not contain; or None."""
+    text = None
+    for f, pattern in fixes:
+        if pattern:
+            if text is None:
+                try:
+                    text = open(log, errors='replace').read()
+                except FileNotFoundError:
+                    text = ''
+            if not pattern.search(text):
+                continue
+        if not built_with or built_with == 'unknown':
+            return f
+        c = built_with.rstrip('+')
+        if subprocess.run(['git', '-C', repo, 'merge-base', '--is-ancestor', f, c],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+            return f
+    return None
+
+
 class Builder:
     def __init__(self, a):
         self.a = a
@@ -272,6 +318,7 @@ class Builder:
         self.chroot_has = installed(a.chroot)
         self.unpacked = set()
         self.ours = built_debs(self.work)
+        self.toolchain = toolchain(a.prefix)
 
     def source_of(self, binary):
         p = self.debian.get(binary)
@@ -392,7 +439,7 @@ class Builder:
                 made.append(os.path.basename(out))
         self.ours = built_debs(self.work)
         with open(os.path.join(self.work, 'built.txt'), 'a') as f:
-            f.write(f'{name} {ver}\n')
+            f.write(f'{name} {ver} gexcc={self.toolchain.get("gex", "unknown")}\n')
         print(f'ok {name} {ver} (headers only, repacked): {" ".join(made)}', flush=True)
         return 'ok'
 
@@ -516,7 +563,7 @@ class Builder:
         if not made:
             return 'build made no .deb'
         with open(os.path.join(self.work, 'built.txt'), 'a') as f:
-            f.write(f'{name} {ver}\n')
+            f.write(f'{name} {ver} gexcc={self.toolchain.get("gex", "unknown")}\n')
         lenient = leniency(log)
         with open(os.path.join(self.work, 'lenient.txt'), 'a') as f:
             f.write(f'{name} {ver}: {lenient}\n')
@@ -539,7 +586,22 @@ def main():
     a = ap.parse_args()
     b = Builder(a)
     bt = os.path.join(b.work, 'built.txt')
-    built = {l.split()[0] for l in open(bt)} if os.path.exists(bt) else set()
+    # a source's last line says what it was last built with
+    last = {}
+    for l in (open(bt) if os.path.exists(bt) else []):
+        w = l.split()
+        if w:
+            last[w[0]] = next((x.split('=', 1)[1] for x in w[2:] if x.startswith('gexcc=')), None)
+    fixes = rebuild_forcing()
+    repo = b.toolchain.get('gex-repo')
+    built, stale_srcs = set(), set()
+    for src, tc in last.items():
+        f = stale(tc, os.path.join(b.work, 'logs', f'{src}.log'), fixes, repo) if fixes and repo else None
+        if f:
+            stale_srcs.add(src)
+            print(f'stale {src}: built with gexcc {tc or "(not recorded)"}, before {f}', file=sys.stderr, flush=True)
+        else:
+            built.add(src)
     state = {}   # source -> 'ok' | reason | 'visiting'
     order = []
 
@@ -552,10 +614,13 @@ def main():
             return
         state[src] = 'visiting'
         try:
-            _, _, _, needs, _ = b.plan(src, index=True)
+            _, _, debs, needs, _ = b.plan(src, index=True)
         except RuntimeError as e:
             state[src] = str(e)
             return
+        # what the sysroot has from a build a rebuild-forcing fix postdates
+        needs = list(needs) + [n for n in (os.path.basename(d).split('_')[0] for d in debs)
+                               if b.source_of(n) in stale_srcs]
         for bin_ in needs:
             s = b.source_of(bin_)
             if s and s != src:

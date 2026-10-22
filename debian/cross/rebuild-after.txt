@@ -1,0 +1,6 @@
+# gexcc commits that change what a successful build makes: a package whose
+# built.txt line records a gexcc without one of them is built again by
+# xbuild.py --auto. One commit per line, optionally followed by a regular
+# expression its build log must match for the fix to apply, then
+# `| what changed`.
+2990a208 -shared .*--whole-archive | --whole-archive stays among the inputs: a shared library linked from libtool's convenience archives had only the members something else referenced (libX11.so without XKB, Xcms and i18n)
