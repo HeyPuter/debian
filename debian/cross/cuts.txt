@@ -39,21 +39,29 @@
 qt6-base  cut libgtk-3-dev                | gtk+3.0 alone pulls ~300 sources (colord, sane, Qt5, PulseAudio, samba) | the GTK3 platform theme (GTK file dialogs and colours in Qt apps outside Plasma)
 qt6-base  drop qt6-gtk-platformtheme      | it is the GTK3 theme plugin | as above
 qt6-base  cmake FEATURE_gtk3=OFF          | debian/rules passes -DFEATURE_gtk3=ON | as above
+qt6-base  exclude Qt6QGtk3ThemePlugin      | qt6-base-dev lists the plugin's CMake files | as above
 qt6-base  cut default-libmysqlclient-dev  | MySQL client library (mysql-defaults, mariadb) | the QMYSQL SQL driver
 qt6-base  drop libqt6sql6-mysql           | it is the QMYSQL driver | as above
 qt6-base  cmake FEATURE_sql_mysql=OFF     | debian/rules passes -DFEATURE_sql_mysql=ON | as above
+qt6-base  exclude Qt6QMYSQLDriverPlugin    | qt6-base-dev lists the driver's CMake files | as above
 qt6-base  cmake FEATURE_xcb_glx_plugin=OFF | gex's libGL has no GLX 1.3 pbuffer or context queries (glXCreatePbuffer, glXQueryContext) | Qt's GLX path on X11; Qt uses EGL there instead
 qt6-base  exclude libqxcb-glx-integration.so | the plugin is not built | as above
+qt6-base  exclude Qt6QXcbGlxIntegrationPlugin | qt6-base-dev lists the plugin's CMake files | as above
 qt6-base  cut libpq-dev                   | PostgreSQL (postgresql-17 pulls systemtap, avahi, gtk3) | the QPSQL SQL driver
 qt6-base  drop libqt6sql6-psql            | it is the QPSQL driver | as above
 qt6-base  cmake FEATURE_sql_psql=OFF      | debian/rules passes -DFEATURE_sql_psql=ON | as above
+qt6-base  exclude Qt6QPSQLDriverPlugin     | qt6-base-dev lists the driver's CMake files | as above
 qt6-base  cut firebird-dev                | Firebird (firebird4.0, a database server) | the QIBASE SQL driver (debian/rules turns it off with the package)
 qt6-base  drop libqt6sql6-ibase           | it is the QIBASE driver | as above
+qt6-base  exclude Qt6QIBaseDriverPlugin    | qt6-base-dev lists the driver's CMake files | as above
 qt6-base  cut libcups2-dev                | cups pulls avahi, gnutls, krb5 and apache2 | printing from Qt apps (QPrintDialog lists no printers); there are no printers in the page
 qt6-base  cmake FEATURE_cups=OFF          | debian/rules passes -DFEATURE_cups=ON | as above
+qt6-base  exclude libcupsprintersupport.so | libqt6printsupport6 lists the CUPS plugin | as above
+qt6-base  exclude Qt6QCupsPrinterSupportPlugin | qt6-base-dev lists the plugin's CMake files | as above
 qt6-base  cut libproxy-dev                | libproxy pulls NetworkManager, webkit2gtk and duktape | PAC/WPAD proxy discovery (Qt's system proxy reads the environment only)
 qt6-base  cmake FEATURE_libproxy=OFF      | debian/rules passes -DFEATURE_libproxy=ON | as above
 qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburcu, numactl) | Qt's LTTng trace points
+qt6-base  exclude qt-android-runner.py   | installed only by an Android-capable host build | nothing (an Android deployment helper)
 dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
 dbus      meson apparmor=disabled        | debian/rules passes -Dapparmor=enabled | as above
 libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool
