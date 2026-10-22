@@ -90,3 +90,4 @@ dbus-broker
 cron
 udev
 javahelper
+zip
