@@ -120,6 +120,18 @@ esac
 exec /usr/bin/chrpath "$@"
 SH
 chmod +x "$E/bin/chrpath"
+# dpkg-query: a query naming a package of the target architecture
+# (PKG:musl-linux-wasm32) is answered from the sysroot's package database,
+# which xbuild keeps as it unpacks the target's packages there; any other,
+# from the build machine's
+cat > "$E/bin/dpkg-query" <<SH
+#!/bin/sh
+for a; do
+    case \$a in *:musl-linux-wasm32) exec /usr/bin/dpkg-query --admindir=$P/sysroot/var/lib/dpkg "\$@" ;; esac
+done
+exec /usr/bin/dpkg-query "\$@"
+SH
+chmod +x "$E/bin/dpkg-query"
 cat > "$E/env.sh" <<ENV
 # . this file: Debian's build tools, cross for musl-linux-wasm32 through gexcc
 export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH

@@ -183,6 +183,22 @@ def into_sysroot(deb, sysroot, done, chroot=None):
                 if n.endswith('-config') and os.path.isfile(f) and open(f, 'rb').read(2) == b'#!' \
                         and not os.path.exists(os.path.join(chroot, 'usr/bin', n)):
                     shutil.copy2(f, os.path.join(chroot, 'usr/bin', n))
+    # the target's package database: a Debian cross build has the -dev
+    # package installed for the host architecture, and debian/rules ask
+    # dpkg-query about it (glib2.0's libffi-dev:HOST_ARCH); the environment's
+    # dpkg-query answers a HOST_ARCH query from here
+    ctl = subprocess.run(['dpkg-deb', '-f', deb], capture_output=True, text=True, check=True).stdout
+    name = re.search(r'^Package: (\S+)', ctl, re.M).group(1)
+    db = os.path.join(sysroot, 'var/lib/dpkg')
+    os.makedirs(os.path.join(db, 'info'), exist_ok=True)
+    st = os.path.join(db, 'status')
+    old = open(st).read().split('\n\n') if os.path.exists(st) else []
+    keep = [x.strip('\n') for x in old if x.strip() and not re.match(rf'Package: {re.escape(name)}\n', x.strip('\n') + '\n')]
+    lines = ctl.rstrip('\n').split('\n')
+    lines.insert(1, 'Status: install ok installed')
+    with open(st + '.new', 'w') as f:
+        f.write('\n\n'.join(keep + ['\n'.join(lines)]) + '\n')
+    os.replace(st + '.new', st)
 
 
 def target_lib(name):
@@ -434,7 +450,11 @@ class Builder:
         stamp = os.path.join(srcdir, 'debian', 'debhelper-build-stamp')
         if os.path.exists(stamp):
             os.unlink(stamp)
-        cmd = f'cd {srcdir} && {env} dpkg-buildpackage -a {ARCH} -d -B -uc -us'
+        # fakeroot for the targets that need root (pam's chgrp shadow): uid 0
+        # in the chroot's user namespace has no other group to give a file,
+        # so fakeroot only records the owner (EINVAL from the real chown is
+        # not the EPERM it would forgive)
+        cmd = f'cd {srcdir} && {env} FAKEROOTDONTTRYCHOWN=1 dpkg-buildpackage -a {ARCH} -d -B -uc -us -rfakeroot'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
                                 '--bind', self.work, '--', 'bash', '-c', cmd], stdout=f, stderr=subprocess.STDOUT)
