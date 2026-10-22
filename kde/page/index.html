@@ -55,10 +55,12 @@ const app = await start({
     pack: 'pack.json',
     zstd: 'vendor/zstddec-stream.mjs',
     exe: '/usr/bin/bash',
-    argv: ['/usr/bin/bash', '/usr/local/bin/gex-kde-session'],
+    // the program's arguments, after argv[0] (app.js puts `exe` first)
+    argv: ['/usr/local/bin/gex-kde-session'],
     env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HOME=/root', 'TERM=xterm-256color',
           'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...(site.env ?? [])],
     cwd: '/root',
+    uid: 0,
     size: 'fit',
     featuresOff: [],
     compositor: true,
