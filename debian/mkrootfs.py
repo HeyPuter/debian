@@ -375,6 +375,8 @@ def main():
     ap.add_argument('--extra', default='', help='more arm64 packages (and their closure)')
     ap.add_argument('--exclude', default='', help='our packages to leave out of the image (still in the repo)')
     ap.add_argument('--ours', default='', help='only these of our packages in the image (still all in the repo)')
+    ap.add_argument('--ours-closure', action='store_true',
+                    help='only the closure of the roots among our packages in the image (still all in the repo)')
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
     ap.add_argument('--arch', default='arm64',
                     help="Debian's architecture for the tree (amd64: the cross build's chroot)")
@@ -392,40 +394,89 @@ def main():
     if a.ours:
         only = set(a.ours.split(','))
         image_ours = [(d, c) for d, c in image_ours if c['Package'] in only]
-    our_names = {c['Package'] for _, c in ours}
-    for _, c in ours:
-        for item in c.get('Provides', '').split(','):
-            if item.strip():
-                our_names.add(item.strip().split(' ')[0])
-    # (a package of ours left out of the image does not satisfy anything)
-    have_ours = {c['Package'] for _, c in image_ours}
-    for _, c in image_ours:
-        for item in c.get('Provides', '').split(','):
-            if item.strip():
-                have_ours.add(item.strip().split(' ')[0])
+    # Ours stand in for Debian's by name when they are the native
+    # architecture's or Multi-Arch: foreign (tools); a library of ours
+    # (musl-linux-wasm32) is only for our binaries, and an arm64 binary that
+    # needs it still gets Debian's.
+    def provided(c):
+        return [item.strip().split(' ')[0] for item in c.get('Provides', '').split(',') if item.strip()]
 
+    def stands_in(c):
+        return c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed')
+
+    our_names = set()
+    for _, c in ours:
+        if stands_in(c):
+            our_names.add(c['Package'])
+            our_names.update(provided(c))
     pkgs, provides = debfetch.packages(a.cache, SUITE, NATIVE)
-    roots = [r for r in a.roots.split(',') + a.extra.split(',') if r]
-    # what ours depend on from Debian (architecture-independent data)
-    for _, c in image_ours:
-        for alts in debfetch.clauses(c):
-            if not any(x in have_ours for x in alts):
-                roots.append(alts[0])
-    order = debfetch.closure(pkgs, provides, roots, exclude=our_names)
-    # A name ours provides is never Debian's in the image.
-    order = [n for n in order if n not in our_names]
-    unmet = []
-    have = set(order) | have_ours
-    for n in order:
-        for item in pkgs[n].get('Provides', '').split(','):
-            if item.strip():
-                have.add(item.strip().split(' ')[0])
-    for p in [pkgs[n] for n in order] + [c for _, c in image_ours]:
-        for alts in debfetch.clauses(p):
-            if not any(x in have for x in alts):
-                unmet.append(f'{p["Package"]} needs {" | ".join(alts)}')
-    if unmet:
+
+    def shared_for_ours(n):
+        """a Debian package one of ours may depend on: not tied to Debian's architecture"""
+        n = n if n in pkgs else provides.get(n)
+        return n and (pkgs[n].get('Architecture') == 'all' or pkgs[n].get('Multi-Arch') == 'foreign')
+
+    user_roots = [r for r in a.roots.split(',') + a.extra.split(',') if r]
+    by_name = {c['Package']: c for _, c in image_ours}
+    prov = {}
+    for c in by_name.values():
+        for n in provided(c):
+            prov.setdefault(n, c['Package'])
+    our_roots = list(user_roots)
+    candidates = image_ours
+    while True:
+        if a.ours_closure:
+            # the roots and what they need, wherever ours have it, and those of
+            # ours that Debian's packages in the image need
+            want = set(debfetch.closure(by_name, prov, our_roots, exclude=set()))
+            image_ours = [(d, c) for d, c in candidates if c['Package'] in want]
+        # (a package of ours left out of the image does not satisfy anything)
+        have_ours = set()
+        for _, c in image_ours:
+            have_ours.add(c['Package'])
+            have_ours.update(provided(c))
+        roots = list(user_roots)
+        # what ours depend on from Debian (architecture-independent data and
+        # tools); a library ours lack is a gap in our build, not Debian's to fill
+        gaps = []
+        for _, c in image_ours:
+            for alts in debfetch.clauses(c):
+                if any(x in have_ours for x in alts):
+                    continue
+                pick = next((x for x in alts if shared_for_ours(x)), None)
+                if pick:
+                    roots.append(pick)
+                else:
+                    gaps.append(f'{c["Package"]} needs {" | ".join(alts)}')
+        order = debfetch.closure(pkgs, provides, roots, exclude=our_names)
+        # A name ours stand in for is never Debian's in the image.
+        order = [n for n in order if n not in our_names]
+        unmet, pull = [], []
+        have = set(order) | (have_ours & our_names)
+        for n in order:
+            have.update(provided(pkgs[n]))
+        for p in [pkgs[n] for n in order]:
+            for alts in debfetch.clauses(p):
+                if any(x in have for x in alts):
+                    continue
+                ours_alt = next((x for x in alts if x in our_names and (x in by_name or x in prov)), None)
+                if a.ours_closure and ours_alt:
+                    pull.append(ours_alt)
+                else:
+                    unmet.append(f'{p["Package"]} needs {" | ".join(alts)}')
+        pull = [x for x in pull if x not in our_roots]
+        if not pull:
+            break
+        our_roots += pull
+    if unmet and not a.ours_closure:
         sys.exit('the closure is not self-consistent:\n  ' + '\n  '.join(unmet))
+    # (with --ours-closure, an arm64 package can need what neither has: an
+    # arm64 XS module, which our perl cannot load; apt sees it as broken)
+    if unmet:
+        print(f'{len(unmet)} dependencies nothing in the image meets:\n  ' + '\n  '.join(unmet), file=sys.stderr)
+    if gaps:
+        print(f'{len(set(gaps))} dependencies of ours that only Debian\'s {NATIVE} libraries meet (left out):\n  '
+              + '\n  '.join(sorted(set(gaps))), file=sys.stderr)
     native = [(debfetch.fetch(a.cache, pkgs[n]), pkgs[n]) for n in order]
     print(f'{len(native)} Debian packages, {len(image_ours)} of ours', file=sys.stderr)
 
