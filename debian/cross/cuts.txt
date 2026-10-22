@@ -155,7 +155,8 @@ plasma-desktop cut libkaccounts6-dev     | KAccounts (kaccounts-integration) is 
 libksysguard cut libpcap-dev             | libpcap pulls bluez, and through it alsa's Python, systemtap, avahi and gtk3 | per-application network usage in System Monitor (its network plugin and helper)
 libksysguard exclude ksgrd_network_helper | the helper is not built without libpcap | as above
 libksysguard exclude ksysguard_plugin_network | the plugin is not built without libpcap | as above
-alsa-lib  cut libpython3-dev              | configure uses Python only for the mixer Python modules, off by default (Debian does not enable them) | nothing
+alsa-lib  cut libpython3-dev              | the target's Python is not built; Debian's rules enable the mixer Python module (--enable-mixer-pymods) | the Python mixer module, smixer-python.so in libasound2-plugin-smixer
+alsa-lib  autoconf enable_python=no      | as above: without it configure takes the build machine's python3-config include flags | as above
 kf6-solid cut libimobiledevice-dev        | libimobiledevice and libplist build Python bindings with no knob, which pull CPython and through it systemtap, avahi and gtk3 | Solid's iPhone/iPad backend (no USB devices in the page)
 kf6-solid cut libplist-dev                | as above | as above
 zxing-cpp cut python3-dev                 | the Python module, which pulls CPython (as above) | python3-zxing-cpp (nothing in a Plasma session)
@@ -240,6 +241,10 @@ libsecret meson vapi=false               | the Vala bindings are generated from 
 libsecret meson gtk_doc=false            | gi-docgen documents the .gir | the HTML reference (libsecret-1-dev's usr/share/doc/libsecret-1-dev/html)
 libsecret exclude .gir                   | libsecret-1-dev lists the .gir | as above
 libsecret exclude .typelib               | gir1.2-secret-1 lists the typelib | as above
+libsecret cut valac                      | the Vala bindings are off (vapi=false) | as above
+libsecret exclude vala/vapi              | libsecret-1-dev lists them | as above
+libsecret cut gi-docgen                  | the reference is off (gtk_doc=false) | the HTML reference, as above
+libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the reference | as above
 libsecret exclude vala/vapi              | libsecret-1-dev lists the Vala bindings | as above
 libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the HTML reference | as above
 audit profile pkg.audit.noldap           | audit's LDAP is only for its z/OS remote plugin; openldap and cyrus-sasl2 need each other | audispd's z/OS remote plugin

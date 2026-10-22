@@ -47,6 +47,10 @@ ARCH = 'musl-linux-wasm32'
 # cross build's PKG:wasm32 of these)
 TOOLCHAIN = {'libc6-dev', 'libc-dev', 'linux-libc-dev', 'pkg-config', 'pkgconf', 'libstdc++-dev',
              'libstdc++-14-dev', 'libgcc-14-dev', 'libgcc-s1', 'libatomic1', 'libc++-dev', 'libc++abi-dev'}
+# What Debian's architecture-properties provides on wasm32 (its
+# architecture-is-${DEB_HOST_ARCH_ENDIAN}-endian and -${BITS}-bit): a
+# Build-Depends on the target's endianness or word size (lerc's), true here.
+TOOLCHAIN |= {'architecture-is-little-endian', 'architecture-is-32-bit'}
 
 
 def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
