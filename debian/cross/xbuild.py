@@ -63,7 +63,7 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set()})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set()})
         if kind == 'profile':
             c['profile'].add(what)
         elif kind in ('env', 'meson', 'make', 'autoconf'):
@@ -76,6 +76,17 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
 
 
 CUTS = load_cuts()
+
+
+def add_arch(control, binaries):
+    """cuts.txt's `arch BIN`: BIN's Architecture list (Debian's ports
+    of it, as a port adds itself) gains this one."""
+    stanzas = open(control).read().split('\n\n')
+    for i, st in enumerate(stanzas):
+        m = re.search(r'(?m)^Package: *(\S+)', st)
+        if m and m.group(1) in binaries:
+            stanzas[i] = re.sub(r'(?m)^(Architecture:(?!.*\b' + re.escape(ARCH) + r'\b).*)$', r'\1 ' + ARCH, st)
+    open(control, 'w').write('\n\n'.join(stanzas))
 
 
 def profiles_of(src):
@@ -395,6 +406,8 @@ class Builder:
         if CUTS.get(name, {}).get('headers'):
             return self.repack_headers(name)
         ver, srcdir, debs, needs, lacks = self.plan(name)
+        if CUTS.get(name, {}).get('arch'):
+            add_arch(os.path.join(srcdir, 'debian', 'control'), CUTS[name]['arch'])
         compiled = [f'{n} (a compiled library of {self.headers_of(n)}, which is headers only for wasm32: cuts.txt)'
                     for n in needs if self.headers_of(n)]
         if compiled:

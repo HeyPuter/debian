@@ -21,6 +21,8 @@
 #                        @SYSROOT@ the target's sysroot; cmake values take
 #                        @SYSROOT@ too)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
+#   SOURCE  arch BIN     BIN's Architecture list (the ports it names) gains
+#                        musl-linux-wasm32, as a port adds itself
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
 #                        applies it); only where packaging cannot do it
 #   SOURCE  headers BIN  SOURCE is not built: its binary package BIN, Debian's
@@ -132,6 +134,8 @@ qtkeychain cut qttools5-dev-tools       | the Qt 5 half's | as above
 qtkeychain drop libqt5keychain1         | a Qt 5 package | as above
 qtkeychain drop qt5keychain-dev         | a Qt 5 package | as above
 qtkeychain drop qtkeychain-qt5-dev      | a Qt 5 package | as above
+qtkeychain arch libqt6keychain1         | Debian lists the ports Qt 6 is built on for the Qt 6 half | nothing
+qtkeychain arch qtkeychain-qt6-dev      | as above | nothing
 breeze     cmake BUILD_QT5=OFF          | debian/rules builds Qt 5 and Qt 6; Qt 5 pulls qtbase-opensource-src and with it PulseAudio, samba, gtk3, Python | VISIBLE: the Breeze widget style for Qt 5 apps (a Qt 5 app would draw in Fusion); no app in our set is Qt 5
 breeze     cut libkf5config-dev         | the Qt 5 half's | as above
 breeze     cut libkf5configwidgets-dev  | the Qt 5 half's | as above
