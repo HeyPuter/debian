@@ -53,6 +53,7 @@ qt6-base  cut libproxy-dev                | libproxy pulls NetworkManager, webki
 qt6-base  cmake FEATURE_libproxy=OFF      | debian/rules passes -DFEATURE_libproxy=ON | as above
 qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburcu, numactl) | Qt's LTTng trace points
 dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
+dbus      meson apparmor=disabled        | debian/rules passes -Dapparmor=enabled | as above
 libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool
 harfbuzz  cut libchafa-dev                | chafa pulls tiff, libavif, aom, dav1d | hb-view's terminal (chafa) output
 harfbuzz  meson chafa=disabled             | debian/rules passes -Dauto_features=enabled | as above
