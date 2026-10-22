@@ -1,0 +1,16 @@
+debian/rules only (packaging): the pkg.audit.noldap profile builds no
+audispd-plugins, but override_dh_fixperms-arch changes the modes in its
+directory unconditionally.
+
+--- a/debian/rules
++++ b/debian/rules
+@@ -117,7 +117,8 @@
+ 	#chmod 750 debian/auditd/usr/sbin/audispd
+ 	chmod -R o-rwx debian/auditd/var/log/audit
+ 	chgrp adm debian/auditd/var/log/audit
+-	chmod -R o-rwx debian/auditd/etc/audit debian/audispd-plugins/etc/audit
++	chmod -R o-rwx debian/auditd/etc/audit
++	if [ -d debian/audispd-plugins ]; then chmod -R o-rwx debian/audispd-plugins/etc/audit; fi
+ 
+ get-orig-source:
+ 	-uscan --upstream-version 0

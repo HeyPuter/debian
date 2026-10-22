@@ -256,6 +256,7 @@ libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the reference |
 libsecret exclude vala/vapi              | libsecret-1-dev lists the Vala bindings | as above
 libsecret exclude doc/libsecret-1        | libsecret-1-dev lists the HTML reference | as above
 audit profile pkg.audit.noldap           | audit's LDAP is only for its z/OS remote plugin; openldap and cyrus-sasl2 need each other | audispd's z/OS remote plugin
+audit     patch 0001-rules-noldap-fixperms.patch | debian/rules only (packaging): with pkg.audit.noldap there is no audispd-plugins directory, and the rules chmod it unconditionally | nothing beyond the profile above
 cyrus-sasl2 profile pkg.cyrus-sasl2.noldap | openldap and cyrus-sasl2 need each other; Debian's profile breaks the cycle on this side | SASL's ldapdb auxprop plugin (SASL accounts kept in LDAP)
 cyrus-sasl2 profile pkg.cyrus-sasl2.nosql | the SQL auxprop plugin pulls MariaDB, PostgreSQL and SQLite clients | SASL's SQL auxprop plugin
 icu       make PKGDATA_OPTS=-O $$(firstword $$(wildcard pkgdata.inc) $$(top_builddir)/data/icupkg.inc) -w | with no assembly type pkgdata writes an object file by copying the build machine's ELF header (genccode's match-arch), which gexcc's wasm objects are not; -w (--without-assembly) has it write the data as C, which ICU supports on every compiler. -O is each directory's own flags file (uconv's message library has pkgdata.inc, the data icupkg.inc), $$ so the rules' make passes it on unexpanded | nothing (the same data, compiled from C)
