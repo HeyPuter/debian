@@ -408,6 +408,7 @@ class Builder:
             with open(init, 'w') as f:
                 for var, val in c['cmake']:
                     kind = 'BOOL' if val.upper() in ('ON', 'OFF', 'TRUE', 'FALSE') else 'STRING'
+                    val = val.replace('@SYSROOT@', sysroot)
                     f.write(f'set({var} {val} CACHE {kind} "cuts.txt" FORCE)\n')
             env += f' GEXCC_CMAKE_INIT={init}'
         if c and c['meson']:

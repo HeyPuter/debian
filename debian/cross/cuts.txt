@@ -18,7 +18,8 @@
 #   SOURCE  autoconf VAR=V  VAR=V in a site file configure reads after its
 #                        options (with_X=no over the rules' --with-X)
 #                        (env and autoconf values: @CROSS@ is this directory,
-#                        @SYSROOT@ the target's sysroot)
+#                        @SYSROOT@ the target's sysroot; cmake values take
+#                        @SYSROOT@ too)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
 #                        applies it); only where packaging cannot do it
@@ -283,3 +284,4 @@ unbound   autoconf with_libevent=@SYSROOT@/usr | as with_ssl: libevent's headers
 nghttp2   cut libjemalloc-dev           | jemalloc has no wasm32 port (no quantum for the architecture); only nghttp2's command-line tools use it | the tools' allocator (musl's malloc instead); libnghttp2 never used it
 cln       autoconf cross_compiling=no   | its cross path finds each integer type's width by compiling `(type)2*2*...` until it is 0, which clang turns into a variable-length array once it overflows (gcc folds it), so int comes out 31 bits and long long 63; not cross, configure runs its own probe program, which gexcc's programs can on the build machine (through gex) | nothing (the probe's answers are the target's own)
 boost1.83 headers libboost1.83-dev    | Plasma uses only header-only Boost (plasma-activities: boost/range, boost/container); Debian's boost has no build profiles, and its build needs MPI, Python with numpy, TeX Live and ports of Boost.Context and Coroutine to wasm32 | every compiled Boost library: none exists for wasm32 (a source needing libboost-*-dev other than the headers stops at its dependencies; CMake's find_package(Boost COMPONENTS ...) finds no component)
+draco     cmake DRACO_TINYGLTF_PATH=@SYSROOT@/usr/include/stb | debian/rules names tinygltf's headers on the build machine's path (a cross build of Debian's has them there; ours are in the sysroot) | nothing
