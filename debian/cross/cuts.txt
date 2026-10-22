@@ -321,3 +321,16 @@ krb5      autoconf krb5_cv_attr_constructor_destructor=yes,yes | configure runs 
 libinput  meson debug-gui=false          | 1.28 builds debug-gui by default (true, not auto); its GTK3 is cut above | as the libgtk-3-dev cut
 krb5      autoconf ac_cv_func_regcomp=yes | configure runs a program to see regcomp works, and stops when cross compiling; musl's does | nothing
 krb5      autoconf ac_cv_printf_positional=yes | configure runs a program to see printf takes positional arguments (%1$s), and stops when cross compiling; musl's does | nothing
+# GObject introspection, as libgudev: a target gobject-introspection runs wasm32 programs during the build
+at-spi2-core cut gir1.2-glib-2.0-dev     | as libgudev: the introspection build's inputs | the AT-SPI and ATK introspection data (gir1.2-atspi-2.0, gir1.2-atk-1.0): Python and GJS accessibility clients (Orca); Qt's bridge uses libatspi's D-Bus side
+at-spi2-core cut gir1.2-gobject-2.0-dev  | as above | as above
+at-spi2-core cut gir1.2-dbus-1.0-dev     | as above | as above
+at-spi2-core drop gir1.2-atspi-2.0       | it is the introspection data | as above
+at-spi2-core drop gir1.2-atk-1.0         | it is the introspection data | as above
+at-spi2-core meson introspection=disabled | debian/rules passes -Dintrospection=enabled | as above
+at-spi2-core exclude gir-1.0             | the -dev packages list usr/share/gir-1.0/ | as above
+policykit-1 cut gir1.2-gio-2.0-dev       | as libgudev: the introspection build's input | polkit's introspection data (gir1.2-polkit-1.0): GJS and Python polkit agents; polkit-qt-1 links libpolkit directly
+policykit-1 drop gir1.2-polkit-1.0       | it is the introspection data | as above
+policykit-1 meson introspection=false    | debian/rules passes -Dintrospection=true | as above
+policykit-1 make configure_flags=-Dgtk_doc=false -Dsession_tracking=logind | in a cross build the rules add --cross-file=wasm32-linux-musl-gobject-introspection.ini, which only a target gobject-introspection installs; these are the rest of the rules' Linux flags | as above
+policykit-1 exclude .gir                 | the -dev packages list their .gir | as above
