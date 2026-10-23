@@ -60,9 +60,9 @@ done
 for t in cputable ostable abitable tupletable; do
     [ -e "$E/dpkg/$t" ] && extra+=(--ro-bind "$E/dpkg/$t" "/usr/share/dpkg/$t")
 done
-# the environment's chrpath and patchelf at the tools' own paths too:
-# debian/rules name /usr/bin/chrpath (exiv2's); the real ones move aside
-for t in chrpath patchelf; do
+# the environment's chrpath, patchelf and dh_qmldeps at the tools' own paths
+# too: debian/rules name /usr/bin/chrpath (exiv2's); the real ones move aside
+for t in chrpath patchelf dh_qmldeps; do
     [ -e "$C/usr/bin/$t" ] && [ -e "$E/bin/$t" ] &&
         extra+=(--ro-bind "$C/usr/bin/$t" "/usr/lib/gex-cross/$t" --ro-bind "$E/bin/$t" "/usr/bin/$t")
 done

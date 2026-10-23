@@ -145,6 +145,19 @@ esac
 exec "$real" "$@"
 SH
 chmod +x "$E/bin/patchelf"
+# dh_qmldeps: qt6-declarative's rules run it with LD_LIBRARY_PATH at the
+# libraries just built, so the build machine's qmlimportscanner would load
+# them; in a cross build they are the target's (wasm) and no build-machine
+# program can load them, so the scanner keeps its own
+cat > "$E/bin/dh_qmldeps" <<'SH'
+#!/bin/sh
+# (in-chroot.sh binds this over /usr/bin/dh_qmldeps, and the real one here)
+real=/usr/lib/gex-cross/dh_qmldeps
+[ -x "$real" ] || real=/usr/bin/dh_qmldeps
+unset LD_LIBRARY_PATH
+exec "$real" "$@"
+SH
+chmod +x "$E/bin/dh_qmldeps"
 # dpkg-query: a query naming a package of the target architecture
 # (PKG:musl-linux-wasm32) is answered from the sysroot's package database,
 # which xbuild keeps as it unpacks the target's packages there; any other,
