@@ -46,6 +46,9 @@ def span(path):
     return ((hi - lo + 0xffff) & ~0xffff) + 0x10000
 pins = [f"{p['path']}@{p['base']}+{span(p['path']):#x}" for p in m['pins']]
 switches = {'cgen': '1', 'cgenurl': 'units', 'elfunits': ','.join(names), 'pins': ','.join(pins)}
+# the project's own region above the placement window, when its libraries have one
+if int(m.get('pin_region', '0x0'), 16):
+    switches['pinregion'] = m['pin_region']
 json.dump({'tar': ['kde.tar'], 'env': [], 'switches': switches}, open(sys.argv[2], 'w'), indent=1)
 print(f'units: {len(units)} objects, {len(pins)} pins')
 PY
