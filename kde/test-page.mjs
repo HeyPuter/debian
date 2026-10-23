@@ -113,7 +113,7 @@ function rss() {
 
 log(`open ${url}`);
 await b.send('Page.navigate', { url }, s);
-let readyAt = null, lastShot = 0, lastNote = 0, peak = 0;
+let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 for (;;) {
   await new Promise((r) => setTimeout(r, 1000));
   const st = await ev('({ phase: globalThis.__kde?.phase, readyMs: globalThis.__kde?.readyMs, out: (globalThis.__kde?.out ?? "").slice(-4000), status: globalThis.__kde?.status })').catch(() => null);
@@ -122,7 +122,9 @@ for (;;) {
   if (st?.out) writeFileSync(join(OUT, 'session.txt'), st.out);
   if (st?.phase === 'ready' && !readyAt) { readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`); await shot(); lastShot = now; }
   if (now - lastNote > 30000) { lastNote = now; log(`phase ${st?.phase}; served ${(served / 1048576).toFixed(0)} MiB; browser ${rss()} MiB; last: ${(st?.out ?? '').trim().split('\n').pop()?.slice(0, 200)}`); }
-  if (readyAt && now - lastShot > SHOT) { lastShot = now; await shot(); }
+  // before `ready` too: a session can draw its desktop without the page
+  // calling itself ready
+  if (now - lastShot > SHOT) { lastShot = now; await shot(); }
   if (st?.phase === 'exited') { log(`FAIL the session ended (${st.status})`); break; }
   if (readyAt && now - readyAt > AFTER) break;
   if (now - t0 > WALL) { log(`FAIL wall of ${WALL / 1000} s`); break; }
