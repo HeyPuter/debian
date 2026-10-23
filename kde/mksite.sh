@@ -29,7 +29,9 @@ if [ -d "$TAR" ]; then
     if [ -n "${FULL:-}" ]; then
         # as FULL has them: a symlink there replaces the directory an
         # eject made of it
-        grep -v '^#' "$HERE/site-files.txt" | grep . | tar -C "$FULL" -cf - -T - | tar -C "$TAR" --recursive-unlink -xf -
+        { grep -v '^#\|^pkg ' "$HERE/site-files.txt" | grep .
+          python3 -I "$HERE/pkgfiles.py" "$FULL" "$TAR" $(sed -n 's/^pkg //p' "$HERE/site-files.txt"); } |
+            tar -C "$FULL" -cf - -T - | tar -C "$TAR" --recursive-unlink -xf -
     fi
     cp -a "$HERE/overlay/." "$TAR/"
     "$HERE/sycoca.sh" "$TAR" > /dev/null
