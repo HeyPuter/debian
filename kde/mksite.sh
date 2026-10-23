@@ -4,7 +4,11 @@
 # as one tar, and pack.json, which names every file served compressed
 # (FILE.zst) with its sizes.
 #
-#   kde/mksite.sh EJECT_PAGE_DIR TREE.tar OUT        (ZSTD_LEVEL: default 12)
+#   kde/mksite.sh EJECT_PAGE_DIR TREE.tar|TREE OUT   (ZSTD_LEVEL: default 12)
+#
+# A TREE directory (an eject project's build/rootfs) gets its KService
+# database built in it first (kde/sycoca.sh: it has to be the final tree's,
+# or every session rebuilds it) and is tarred here.
 #
 # UNITS=EJECT_PROJECT: serve that project's function-tier units (its
 # build/cgen, as OUT/units) and switch them on: each listed object
@@ -18,6 +22,11 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 PAGE=$(realpath "${1:?EJECT_PAGE_DIR}"); TAR=$(realpath "${2:?TREE.tar}"); OUT=$(realpath -m "${3:?OUT}")
 LEVEL=${ZSTD_LEVEL:-12}
 mkdir -p "$OUT"
+if [ -d "$TAR" ]; then
+    "$HERE/sycoca.sh" "$TAR" > /dev/null
+    (cd "$TAR" && tar --owner=0 --group=0 -cf "$OUT/kde.tar" $(ls -A))
+    TAR=$OUT/kde.tar
+fi
 cp -a "$PAGE/." "$OUT/"
 cp "$HERE/page/index.html" "$OUT/index.html"
 if [ -n "${UNITS:-}" ]; then
@@ -74,3 +83,5 @@ json.dump({'build': time.strftime('%Y%m%d%H%M%S'), 'files': files}, open(os.path
 total = sum(e['zsize'] for e in files.values())
 print(f'{out}: {len(files)} packed files, {total} bytes compressed')
 PY
+[ "$TAR" = "$OUT/kde.tar" ] && rm "$TAR"
+exit 0

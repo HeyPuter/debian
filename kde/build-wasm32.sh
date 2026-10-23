@@ -32,5 +32,6 @@ python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$
 cp -a "$HERE/overlay/." "$O/tree/"
 XDG_DATA_DIRS="$O/tree/usr/share" update-mime-database "$O/tree/usr/share/mime"
 [ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
+"$HERE/sycoca.sh" "$O/tree"
 tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name -cf "$O/kde.tar" .
 echo "$O/kde.tar: $(du -h "$O/kde.tar" | cut -f1)"
