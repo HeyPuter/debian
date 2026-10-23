@@ -51,7 +51,32 @@ fi
 # GEX_KDE_XLOG=FILE (debugging): the X server's top-level windows, mapped
 # or not, once a minute
 if [ -n "${GEX_KDE_XLOG:-}" ]; then
-    (while :; do sleep 60; { date +%T; xwininfo -root -children; } >> "$GEX_KDE_XLOG" 2>&1; done) &
+    (while :; do sleep 60; { date +%T; xwininfo -root -tree; } >> "$GEX_KDE_XLOG" 2>&1; done) &
+fi
+# GEX_KDE_LISTHOME=SECONDS (debugging): what the session has made in the
+# home directory's config and data then (shell globs: an ejected tree may
+# have no ls)
+if [ -n "${GEX_KDE_LISTHOME:-}" ]; then
+    (sleep "$GEX_KDE_LISTHOME"; echo "gex-kde-session: ~/.config:" "$HOME"/.config/*; echo "gex-kde-session: ~/.local/share:" "$HOME"/.local/share/*; echo "gex-kde-session: ~/.cache:" "$HOME"/.cache/*) &
+fi
+# The image's KService database (ksycoca), built with it: one rebuilt at
+# session start, because a directory or file it indexes looks newer, costs
+# minutes under translation. Said if it is missing or changes in the first
+# 10 minutes (kde/test-page.mjs fails on it).
+# Shell builtins alone: an ejected tree has only the programs the session
+# ran (no ls, stat or head).
+db=
+for f in "$HOME"/.cache/ksycoca6_*; do [ -e "$f" ] && { db=$f; break; }; done
+if [ -z "$db" ]; then
+    echo "gex-kde-session: no ksycoca in the image"
+else
+    mark=$XDG_RUNTIME_DIR/.gex-sycoca-start
+    : > "$mark"
+    (i=0
+     while [ $i -lt 10 ]; do
+         sleep 60; i=$((i + 1))
+         [ "$db" -nt "$mark" ] && { echo "gex-kde-session: ksycoca rebuilt at session start"; break; }
+     done) &
 fi
 # GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
 if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
