@@ -1,7 +1,11 @@
 #!/bin/bash
 # The tree's KService database (ksycoca), built into it under gex with the
 # session's environment (the database's name hashes its directories), after
-# every other change to the tree: KService rebuilds a database that is older
+# every other change to the tree. XDG_MENU_PREFIX as startplasma sets it:
+# the applications are indexed through the menu file it names
+# (etc/xdg/menus/plasma-applications.menu), and without it the database has
+# the MIME types and no application (Kickoff and the task manager's
+# launchers then find none). KService rebuilds a database that is older
 # than a directory or file it indexes, at session start, which under
 # translation costs minutes. A build's last step before its tar.
 #
@@ -25,7 +29,7 @@ fi
 "$GEXC" run --sysroot "$T" --uid 0 \
     --env HOME=/root --env XDG_RUNTIME_DIR=/tmp --env LANG=C.UTF-8 \
     --env XDG_DATA_DIRS=/usr/local/share:/usr/share --env XDG_CONFIG_DIRS=/etc/xdg \
-    --env XDG_CURRENT_DESKTOP=KDE --env QT_QPA_PLATFORM=offscreen \
+    --env XDG_CURRENT_DESKTOP=KDE --env XDG_MENU_PREFIX=plasma- --env QT_QPA_PLATFORM=offscreen \
     "$T/usr/bin/kbuildsycoca6" --noincremental > /dev/null 2>&1 || true
 if [ -n "$borrowed" ]; then
     rm "$T/usr/bin/kbuildsycoca6"
