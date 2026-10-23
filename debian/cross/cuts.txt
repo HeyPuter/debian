@@ -62,6 +62,8 @@ qt6-base  cut libproxy-dev                | libproxy pulls NetworkManager, webki
 qt6-base  cmake FEATURE_libproxy=OFF      | debian/rules passes -DFEATURE_libproxy=ON | as above
 qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburcu, numactl) | Qt's LTTng trace points
 qt6-base  exclude qt-android-runner.py   | installed only by an Android-capable host build | nothing (an Android deployment helper)
+qt6-declarative  drop qml6-module-qmltime | its tools built for the target (debian/rules' QT_BUILD_TOOLS_WHEN_CROSSCOMPILING) are qmltime_native, and the module's qmltypes file is named after that | the qmltime benchmark's QML module
+qt6-declarative  exclude qmltime_native  | the dropped module's qmltypes file is left in debian/tmp, which dh_missing fails on | as above
 dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
 dbus      meson apparmor=disabled        | debian/rules passes -Dapparmor=enabled | as above
 libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool

@@ -212,12 +212,15 @@ def into_sysroot(deb, sysroot, done, chroot=None):
         # a -dev package's FOO-config script (gpgrt-config, which
         # libgcrypt's configure looks for on PATH): on the build machine, as
         # a Debian cross build installs the target's -dev package there.
-        # Scripts only: a wasm32 program is not the build machine's.
+        # Scripts only: a wasm32 program is not the build machine's. Also
+        # the target's tool wrappers (qt6-base-dev's
+        # wasm32-linux-musl-qtpaths6, which runs the build machine's qtpaths6
+        # on the target's qt6.conf), which its CMake packages name by path.
         bindir = os.path.join(t, 'usr/bin')
         if chroot and os.path.isdir(bindir):
             for n in os.listdir(bindir):
                 f = os.path.join(bindir, n)
-                if n.endswith('-config') and os.path.isfile(f) and open(f, 'rb').read(2) == b'#!' \
+                if (n.endswith('-config') or n.startswith('wasm32-linux-musl-')) and os.path.isfile(f) and open(f, 'rb').read(2) == b'#!' \
                         and not os.path.exists(os.path.join(chroot, 'usr/bin', n)):
                     shutil.copy2(f, os.path.join(chroot, 'usr/bin', n))
     # the target's package database: a Debian cross build has the -dev
