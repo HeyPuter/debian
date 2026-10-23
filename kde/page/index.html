@@ -41,6 +41,7 @@ const logEl = document.getElementById('log');
 if (q.get('log') === '1') document.body.classList.add('log');
 const site = await (await fetch('site.json')).json();
 let out = '';
+let desktopUp = false;
 const t0 = performance.now();
 globalThis.__kde = { phase: 'loading', out: '', t0 };
 const app = await start({
@@ -50,7 +51,9 @@ const app = await start({
   debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size')),
   baseUrl: new URL('./', location.href),
   hostx: 'rootful',
-  ready: 'frame',
+  // ready when plasmashell has loaded the desktop (gex-kde-session turns
+  // on the line), not at the X server's first frame
+  ready: 'manual',
   build: {
     arch: 'aarch64',
     tar: site.tar,
@@ -78,6 +81,7 @@ const app = await start({
   onLog: (s) => {
     out += s;
     globalThis.__kde.out = out;
+    if (!desktopUp && /Plasma Shell startup completed/.test(out.slice(-s.length - 64))) { desktopUp = true; globalThis.__kde.app?.ready(); }
     if (q.get('log') === '1') { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; }
   },
   onProgress: (p) => {
@@ -97,6 +101,7 @@ const app = await start({
   },
 });
 globalThis.__kde.app = app;
+if (desktopUp) app.ready();
 app.exited.then((s) => {
   globalThis.__kde.phase = 'exited';
   globalThis.__kde.status = s;
