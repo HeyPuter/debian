@@ -37,6 +37,9 @@ const server = createServer((req, res) => {
   const p = join(SITE, decodeURIComponent(new URL(req.url, 'http://x').pathname));
   const h = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp',
     'Cross-Origin-Resource-Policy': 'same-origin', 'Cache-Control': 'no-cache' };
+  // A unit's files are named by their content (units/HASH/): cached for good,
+  // so the processes after the first read them from the browser's cache.
+  if (/^\/units\/[0-9a-f]{64}\//.test(new URL(req.url, 'http://x').pathname)) h['Cache-Control'] = 'public, max-age=31536000, immutable';
   const f = existsSync(p) && statSync(p).isDirectory() ? join(p, 'index.html') : p;
   if (!f.startsWith(SITE) || !existsSync(f) || !statSync(f).isFile()) return res.writeHead(404, h).end();
   const size = statSync(f).size;
@@ -56,9 +59,11 @@ chrome.stderr.on('data', (d) => (stderr = (stderr + d).slice(-20000)));
 let closing = false;
 chrome.on('exit', (code, sig) => { if (!closing) { log(`FAIL the browser exited (${code}, ${sig}): ${stderr.slice(-1500)}`); process.exit(1); } });
 process.on('exit', () => { closing = true; try { chrome.kill('SIGKILL'); } catch {} try { rmSync(prof, { recursive: true, force: true }); } catch {} });
+// a signal ends the run through 'exit', so the browser goes with it
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => { log(`stopped (${sig})`); process.exit(1); });
 
 let ws = null;
-for (let i = 0; i < 100 && !ws; i++) { ws = await browserWsUrl(port); if (!ws) await new Promise((r) => setTimeout(r, 100)); }
+for (let i = 0; i < 600 && !ws; i++) { ws = await browserWsUrl(port); if (!ws) await new Promise((r) => setTimeout(r, 100)); }
 if (!ws) throw new Error('no browser');
 const b = await Cdp.connect(ws);
 // the first tab can appear some time after the browser's endpoint does
@@ -71,9 +76,14 @@ const targetId = page ? page.targetId : (await b.send('Target.createTarget', { u
 const { sessionId: s } = await b.send('Target.attachToTarget', { targetId, flatten: true });
 // every Worker's console too (each guest process runs in one)
 await b.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, s);
-b.on('Target.attachedToTarget', async (p) => { try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });
-b.on('Runtime.consoleAPICalled', (p) => {
+// every attached Worker, and the guest pid it last spoke for (a pooled
+// Worker runs one process after another)
+const workers = new Map();
+b.on('Target.attachedToTarget', async (p) => { workers.set(p.sessionId, { url: p.targetInfo?.url, pid: null }); try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });
+b.on('Runtime.consoleAPICalled', (p, sid) => {
   const line = p.args.map((a) => a.value ?? a.description ?? '').join(' ');
+  const w = workers.get(sid), m = /\[gex:(\d+)\]|\[gex\] pid (\d+):/.exec(line);
+  if (w && m) w.pid = Number(m[1] ?? m[2]);
   appendFileSync(join(OUT, 'console.txt'), line + '\n');
   if (/called through a declaration of the wrong type|panic|RuntimeError|wasm trap/i.test(line)) log(`console: ${line.slice(0, 300)}`);
 });
@@ -113,6 +123,35 @@ function rss() {
 
 log(`open ${url}`);
 await b.send('Page.navigate', { url }, s);
+let lastFull = 0, sycoca = false;
+// KDE_PROFILE_AT=S1,S2..: at those seconds, a CPU profile of every Worker for
+// KDE_PROFILE_SECS (default 10); each busy one's top functions are logged and
+// its profile kept as OUT/prof-S-PID.cpuprofile
+const profAt = (process.env.KDE_PROFILE_AT || '').split(',').filter(Boolean).map(Number);
+async function profileAll(at) {
+  const secs = Number(process.env.KDE_PROFILE_SECS || 10);
+  const ids = [...workers.keys()];
+  await Promise.all(ids.map(async (id) => { try { await b.send('Profiler.enable', {}, id); await b.send('Profiler.setSamplingInterval', { interval: 1000 }, id); await b.send('Profiler.start', {}, id); } catch {} }));
+  await new Promise((r) => setTimeout(r, secs * 1000));
+  const rows = [];
+  await Promise.all(ids.map(async (id) => {
+    let prof; try { prof = (await b.send('Profiler.stop', {}, id)).profile; } catch { return; }
+    const byId = new Map(prof.nodes.map((n) => [n.id, n]));
+    const self = new Map(); let busy = 0;
+    for (const sid of prof.samples) {
+      const f = byId.get(sid).callFrame; const name = f.functionName || `(anon ${f.url.split('/').pop()}:${f.lineNumber})`;
+      if (name === '(idle)' || name === '(program)' || name === 'k_ws_park' || name === 'wait' || /Atomics/.test(name)) continue;
+      busy++; self.set(name, (self.get(name) || 0) + 1);
+    }
+    const w = workers.get(id);
+    rows.push({ id, pid: w?.pid, busy, total: prof.samples.length, top: [...self].sort((a, b) => b[1] - a[1]).slice(0, 25), prof });
+  }));
+  rows.sort((a, b) => b.busy - a.busy);
+  for (const r of rows.filter((r) => r.busy > r.total / 10).slice(0, 8)) {
+    log(`profile at ${at}s: pid ${r.pid} busy ${r.busy}/${r.total} samples; top: ${r.top.map(([n, c]) => `${n} ${c}`).join(', ').slice(0, 1500)}`);
+    writeFileSync(join(OUT, `prof-${at}-${r.pid}.cpuprofile`), JSON.stringify(r.prof));
+  }
+}
 let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 for (;;) {
   await new Promise((r) => setTimeout(r, 1000));
@@ -120,11 +159,23 @@ for (;;) {
   const now = Date.now();
   peak = Math.max(peak, rss());
   if (st?.out) writeFileSync(join(OUT, 'session.txt'), st.out);
+  // the whole of it, once a minute (session.txt is its last 4000 characters)
+  if (now - lastFull > 60000) { lastFull = now; const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null); if (all) writeFileSync(join(OUT, 'session-full.txt'), all); }
   if (st?.phase === 'ready' && !readyAt) { readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`); await shot(); lastShot = now; }
-  if (now - lastNote > 30000) { lastNote = now; log(`phase ${st?.phase}; served ${(served / 1048576).toFixed(0)} MiB; browser ${rss()} MiB; last: ${(st?.out ?? '').trim().split('\n').pop()?.slice(0, 200)}`); }
+  if (profAt.length && (now - t0) / 1000 >= profAt[0]) await profileAll(profAt.shift());
+  if (now - lastNote > 30000) {
+    lastNote = now;
+    log(`phase ${st?.phase}; served ${(served / 1048576).toFixed(0)} MiB; browser ${rss()} MiB; last: ${(st?.out ?? '').trim().split('\n').pop()?.slice(0, 200)}`);
+    // KDE_SCENE=1: the compositor's frames, windows and scene, each note
+    if (process.env.KDE_SCENE) {
+      const sc = await ev('(async () => JSON.stringify({ c: globalThis.__gexCompositor?.counters?.(), d: await globalThis.__gexCompositor?.describe?.({ pixels: false }) }))()', true).catch((e) => String(e));
+      log(`scene ${String(sc).slice(0, 1500)}`);
+    }
+  }
   // before `ready` too: a session can draw its desktop without the page
   // calling itself ready
   if (now - lastShot > SHOT) { lastShot = now; await shot(); }
+  if (!sycoca && /gex-kde-session: (ksycoca rebuilt|no ksycoca)/.test(st?.out ?? '')) { sycoca = true; log(`FAIL ${(st.out.match(/gex-kde-session: (ksycoca rebuilt[^\n]*|no ksycoca[^\n]*)/) || [])[0]}`); }
   if (st?.phase === 'exited') { log(`FAIL the session ended (${st.status})`); break; }
   if (readyAt && now - readyAt > AFTER) break;
   if (now - t0 > WALL) { log(`FAIL wall of ${WALL / 1000} s`); break; }
@@ -132,4 +183,4 @@ for (;;) {
 await shot();
 const heap = await ev('performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : -1').catch(() => -1);
 log(`end: ready ${readyAt ? `${await ev('globalThis.__kde.readyMs')} ms` : 'never'}; served ${served} bytes; browser peak ${peak} MiB resident; page JS heap ${heap} MiB`);
-process.exit(readyAt ? 0 : 1);
+process.exit(readyAt && !sycoca ? 0 : 1);

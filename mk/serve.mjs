@@ -21,7 +21,8 @@ const handler = (req, res) => {
   const h = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin' };
   if (!st?.isFile()) { res.writeHead(404, h).end(); return; }
   const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
-  const immutable = p.endsWith('.zst') || p.includes('/assets/');
+  // And a unit's files, named by their content (units/HASH/).
+  const immutable = p.endsWith('.zst') || p.includes('/assets/') || /\/units\/[0-9a-f]{64}\//.test(p);
   Object.assign(h, { 'Content-Type': types[path.extname(p)] || 'application/octet-stream', 'ETag': etag,
     'Last-Modified': st.mtime.toUTCString(), 'Accept-Ranges': 'bytes',
     'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache' });
