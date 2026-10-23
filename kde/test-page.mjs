@@ -153,6 +153,37 @@ async function profileAll(at) {
   }
 }
 let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
+// KDE_INPUT: what a user does once the page is ready, steps split by ';':
+// `wait S`, `click X,Y` (page pixels), `type TEXT`, `key NAME` (a DOM key
+// name: Enter, Escape, Tab...), `shot`. Each step is logged.
+const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
+let stepAt = 0;
+const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
+async function step(st) {
+  const [op, ...rest] = st.split(' '); const arg = rest.join(' ');
+  log(`input: ${st}`);
+  if (op === 'wait') { stepAt = Date.now() + Number(arg) * 1000; return; }
+  if (op === 'click') {
+    const [x, y] = arg.split(',').map(Number);
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+    await new Promise((r) => setTimeout(r, 200));
+    await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 }, s);
+    await new Promise((r) => setTimeout(r, 150));
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 }, s);
+  } else if (op === 'type') {
+    for (const ch of arg) {
+      const code = ch === ' ' ? 'Space' : /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : /[0-9]/.test(ch) ? `Digit${ch}` : '';
+      await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, text: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0) }, s);
+      await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0) }, s);
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  } else if (op === 'key') {
+    const vk = keyCodes[arg] ?? 0;
+    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: arg, code: arg, windowsVirtualKeyCode: vk, ...(arg === 'Enter' ? { text: '\r' } : {}) }, s);
+    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: arg, code: arg, windowsVirtualKeyCode: vk }, s);
+  } else if (op === 'shot') await shot();
+  else log(`input: unknown step ${op}`);
+}
 for (;;) {
   await new Promise((r) => setTimeout(r, 1000));
   const st = await ev('({ phase: globalThis.__kde?.phase, readyMs: globalThis.__kde?.readyMs, out: (globalThis.__kde?.out ?? "").slice(-4000), status: globalThis.__kde?.status })').catch(() => null);
@@ -163,6 +194,7 @@ for (;;) {
   if (now - lastFull > 60000) { lastFull = now; const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null); if (all) writeFileSync(join(OUT, 'session-full.txt'), all); }
   if (st?.phase === 'ready' && !readyAt) { readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`); await shot(); lastShot = now; }
   if (profAt.length && (now - t0) / 1000 >= profAt[0]) await profileAll(profAt.shift());
+  while (readyAt && steps.length && Date.now() >= stepAt) await step(steps.shift());
   if (now - lastNote > 30000) {
     lastNote = now;
     log(`phase ${st?.phase}; served ${(served / 1048576).toFixed(0)} MiB; browser ${rss()} MiB; last: ${(st?.out ?? '').trim().split('\n').pop()?.slice(0, 200)}`);
@@ -177,7 +209,7 @@ for (;;) {
   if (now - lastShot > SHOT) { lastShot = now; await shot(); }
   if (!sycoca && /gex-kde-session: (ksycoca rebuilt|no ksycoca)/.test(st?.out ?? '')) { sycoca = true; log(`FAIL ${(st.out.match(/gex-kde-session: (ksycoca rebuilt[^\n]*|no ksycoca[^\n]*)/) || [])[0]}`); }
   if (st?.phase === 'exited') { log(`FAIL the session ended (${st.status})`); break; }
-  if (readyAt && now - readyAt > AFTER) break;
+  if (readyAt && now - readyAt > AFTER && !steps.length && Date.now() >= stepAt) break;
   if (now - t0 > WALL) { log(`FAIL wall of ${WALL / 1000} s`); break; }
 }
 await shot();
