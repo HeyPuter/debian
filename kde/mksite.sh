@@ -6,9 +6,12 @@
 #
 #   kde/mksite.sh EJECT_PAGE_DIR TREE.tar|TREE OUT   (ZSTD_LEVEL: default 12)
 #
-# A TREE directory (an eject project's build/rootfs) gets its KService
-# database built in it first (kde/sycoca.sh: it has to be the final tree's,
-# or every session rebuilds it) and is tarred here.
+# A TREE directory (an eject project's build/rootfs) is given the paths
+# kde/site-files.txt names from FULL (the tree the session was recorded
+# on: build-arm64.sh's or build-wasm32.sh's tree), when FULL is set, and
+# the session's overlay; then gets its KService database built in it
+# (kde/sycoca.sh: it has to be the final tree's, or every session rebuilds
+# it) and is tarred here.
 #
 # UNITS=EJECT_PROJECT: serve that project's function-tier units (its
 # build/cgen, as OUT/units) and switch them on: each listed object
@@ -23,6 +26,12 @@ PAGE=$(realpath "${1:?EJECT_PAGE_DIR}"); TAR=$(realpath "${2:?TREE.tar}"); OUT=$
 LEVEL=${ZSTD_LEVEL:-12}
 mkdir -p "$OUT"
 if [ -d "$TAR" ]; then
+    if [ -n "${FULL:-}" ]; then
+        # as FULL has them: a symlink there replaces the directory an
+        # eject made of it
+        grep -v '^#' "$HERE/site-files.txt" | grep . | tar -C "$FULL" -cf - -T - | tar -C "$TAR" --recursive-unlink -xf -
+    fi
+    cp -a "$HERE/overlay/." "$TAR/"
     "$HERE/sycoca.sh" "$TAR" > /dev/null
     (cd "$TAR" && tar --owner=0 --group=0 -cf "$OUT/kde.tar" $(ls -A))
     TAR=$OUT/kde.tar

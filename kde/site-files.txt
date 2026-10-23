@@ -1,0 +1,10 @@
+# Paths of the full tree that an ejected tree (only what the recorded
+# session read) is given too: data a session looks up by name later,
+# when the user does something the recording did not.
+#
+# the icon themes (1.7 MB compressed): the panel's, the launcher's and
+# the task manager's icons
+usr/share/icons/breeze
+usr/share/icons/hicolor/index.theme
+# the time zone (/etc/localtime names it)
+usr/share/zoneinfo/Etc/UTC
