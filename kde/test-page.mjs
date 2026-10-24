@@ -90,7 +90,23 @@ b.on('Runtime.consoleAPICalled', (p, sid) => {
 b.on('Runtime.exceptionThrown', (p) => log(`exception: ${p.exceptionDetails?.exception?.description?.slice(0, 400)}`));
 await b.send('Runtime.enable', {}, s);
 await b.send('Page.enable', {}, s);
-const ev = async (expr) => (await b.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }, s)).result?.value;
+// a tab that dies (out of memory, a renderer crash) answers nothing again:
+// said, with the browser's last words, rather than waited on for ever
+b.on('Inspector.targetCrashed', (p, sid) => { if (sid === s) { log(`FAIL the page crashed: ${stderr.slice(-1500)}`); process.exit(1); } });
+await b.send('Inspector.enable', {}, s);
+// and one that hangs (its main thread busy): each question gives up after
+// a minute, said once per minute
+let hungSaid = 0;
+const ev = async (expr) => {
+  let timer;
+  const late = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('no answer in 60 s')), 60000); });
+  try {
+    return (await Promise.race([b.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }, s), late])).result?.value;
+  } catch (e) {
+    if (/no answer/.test(e.message) && Date.now() - hungSaid > 60000) { hungSaid = Date.now(); log('the page did not answer in 60 s'); }
+    throw e;
+  } finally { clearTimeout(timer); }
+};
 function png(w, h, rgba) {
   const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
   const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
