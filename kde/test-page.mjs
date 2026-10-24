@@ -262,7 +262,10 @@ for (;;) {
           let v = null;
           try { v = r ? JSON.parse(r.result?.value ?? 'null') : undefined; } catch {}
           if (v?.pid != null) w.pid = v.pid;
-          return v === undefined ? 'no answer' : v === null ? 'no guest' : `${(v.cmdline || '?').split(' ')[0].split('/').pop()}${v.tid ? ' thread' : ''}`;
+          // a Worker with no guest by its script (the runtime's own, or the
+          // compositor's, the fill's...): the runtime's are the host's pool
+          const script = (w.url || '?').split('?')[0].split('/').pop().replace(/-[A-Za-z0-9_]{8}\.js$/, '.js');
+          return v === undefined ? `no answer (${script})` : v === null ? `no guest (${script})` : `${(v.cmdline || '?').split(' ')[0].split('/').pop()}${v.tid ? ' thread' : ''}`;
         }));
         const n = new Map();
         for (const k of who) n.set(k, (n.get(k) ?? 0) + 1);
