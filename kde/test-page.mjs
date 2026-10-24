@@ -79,6 +79,7 @@ await b.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart:
 // every attached Worker, and the guest pid it last spoke for (a pooled
 // Worker runs one process after another)
 const workers = new Map();
+b.on('Target.detachedFromTarget', (p) => workers.delete(p.sessionId));
 b.on('Target.attachedToTarget', async (p) => { workers.set(p.sessionId, { url: p.targetInfo?.url, pid: null }); try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });
 b.on('Runtime.consoleAPICalled', (p, sid) => {
   const line = p.args.map((a) => a.value ?? a.description ?? '').join(' ');
@@ -214,6 +215,18 @@ for (;;) {
   if (now - lastNote > 30000) {
     lastNote = now;
     log(`phase ${st?.phase}; served ${(served / 1048576).toFixed(0)} MiB; browser ${rss()} MiB; last: ${(st?.out ?? '').trim().split('\n').pop()?.slice(0, 200)}`);
+    // KDE_HEAPS=1: every isolate's JS heap (the page's and each Worker's),
+    // which share one renderer and its limits
+    if (process.env.KDE_HEAPS) {
+      const sizes = await Promise.all([s, ...workers.keys()].map((sid) => Promise.race([b.send('Runtime.getHeapUsage', {}, sid), new Promise((r) => setTimeout(() => r(null), 5000))]).catch(() => null)));
+      const ok = sizes.filter(Boolean), sum = (k) => ok.reduce((a, h) => a + (h[k] ?? 0), 0) / 1048576;
+      // Workers per guest pid (the pid each last spoke for), most first
+      const per = new Map();
+      for (const w of workers.values()) per.set(w.pid, (per.get(w.pid) ?? 0) + 1);
+      const byPid = [...per].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([p, n]) => `${p ?? '?'}:${n}`).join(' ');
+      log(`heaps: workers per pid ${byPid}`);
+      log(`heaps: ${ok.length} of ${sizes.length} isolates; used ${sum('usedSize').toFixed(0)} MiB, total ${sum('totalSize').toFixed(0)} MiB, backing stores ${sum('backingStorageSize').toFixed(0)} MiB; page ${((sizes[0]?.totalSize ?? 0) / 1048576).toFixed(0)} MiB`);
+    }
     // KDE_SCENE=1: the compositor's frames, windows and scene, each note
     if (process.env.KDE_SCENE) {
       const sc = await ev('(async () => JSON.stringify({ c: globalThis.__gexCompositor?.counters?.(), d: await globalThis.__gexCompositor?.describe?.({ pixels: false }) }))()', true).catch((e) => String(e));
