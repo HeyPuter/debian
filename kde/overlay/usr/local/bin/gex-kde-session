@@ -27,6 +27,11 @@ export XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESK
 export XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share:/usr/share
 export KWIN_COMPOSE=N QT_QUICK_BACKEND=software QT_XCB_GL_INTEGRATION=none
 export LANG=C.UTF-8
+# Two malloc arenas, not glibc's eight per CPU: each thread's arena reserves
+# 128 MiB of address space, and the guest has 2 GiB; plasmashell's thread
+# pools (a search in the launcher starts a dozen threads) ran it out, and its
+# forked helpers died in malloc
+export MALLOC_ARENA_MAX=2
 # plasmashell says "Plasma Shell startup completed" (a debug line) when the
 # desktop's UI is loaded: the page's loading screen waits for it, since the
 # X server's first frame comes minutes before the desktop is drawn
