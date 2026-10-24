@@ -53,7 +53,11 @@ const prof = mkdtempSync(join(tmpdir(), 'gex-kde-'));
 const port = 9400 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
   '--use-angle=vulkan', '--enable-features=Vulkan', '--window-size=1280,800', `--remote-debugging-port=${port}`,
-  '--remote-allow-origins=*', `--user-data-dir=${prof}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  '--remote-allow-origins=*', `--user-data-dir=${prof}`,
+  // KDE_CHROME_FLAGS: more browser flags, for diagnosis only (the demo runs
+  // in a browser without any)
+  ...(process.env.KDE_CHROME_FLAGS ? process.env.KDE_CHROME_FLAGS.split(' ').filter(Boolean) : []),
+  'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
 let stderr = '';
 chrome.stderr.on('data', (d) => (stderr = (stderr + d).slice(-20000)));
 let closing = false;
