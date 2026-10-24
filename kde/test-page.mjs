@@ -85,12 +85,14 @@ await b.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart:
 const workers = new Map();
 b.on('Target.detachedFromTarget', (p) => workers.delete(p.sessionId));
 b.on('Target.attachedToTarget', async (p) => { workers.set(p.sessionId, { url: p.targetInfo?.url, pid: null }); try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });
+const consoleTime = !!process.env.KDE_CONSOLE_TIME;
 const markRe = process.env.KDE_MARK ? new RegExp(process.env.KDE_MARK) : null, marked = new Set();
 b.on('Runtime.consoleAPICalled', (p, sid) => {
   const line = p.args.map((a) => a.value ?? a.description ?? '').join(' ');
   const w = workers.get(sid), m = /\[gex:(\d+)\]|\[gex\] pid (\d+):/.exec(line);
   if (w && m) w.pid = Number(m[1] ?? m[2]);
-  appendFileSync(join(OUT, 'console.txt'), line + '\n');
+  // KDE_CONSOLE_TIME=1: each console line with its time, as `log` gives it
+  appendFileSync(join(OUT, 'console.txt'), (consoleTime ? `[${((Date.now() - t0) / 1000).toFixed(1)}s] ` : '') + line + '\n');
   // KDE_MARK=RE: the first console line each distinct match of RE is on,
   // logged with its time (`mark:`), e.g. when a program is first exec'd
   if (markRe) { const mm = markRe.exec(line); if (mm && !marked.has(mm[0])) { marked.add(mm[0]); log(`mark: ${mm[0]}`); } }
@@ -165,7 +167,8 @@ async function profileAll(at) {
     const self = new Map(); let busy = 0;
     for (const sid of prof.samples) {
       const f = byId.get(sid).callFrame; const name = f.functionName || `(anon ${f.url.split('/').pop()}:${f.lineNumber})`;
-      if (name === '(idle)' || name === '(program)' || name === 'k_ws_park' || name === 'wait' || /Atomics/.test(name)) continue;
+      // a thread blocked in the kernel (gex_syscall's wait, a park) is idle too
+      if (name === '(idle)' || name === '(program)' || name === 'k_ws_park' || name === 'wait' || /Atomics|waitq4park|^gex_syscall$/.test(name)) continue;
       busy++; self.set(name, (self.get(name) || 0) + 1);
     }
     const w = workers.get(id);
@@ -181,7 +184,8 @@ let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
 // `wait S`, `click X,Y` (page pixels; negative from the right or
 // bottom), `type TEXT`, `key NAME` (a DOM key name: Enter, Escape,
-// Tab...), `hold CH N` (a key held for N repeats), `shot`. Each step is logged.
+// Tab...), `hold CH N` (a key held for N repeats), `shot`, `profile`
+// (every Worker's CPU profile from now, as KDE_PROFILE_AT takes). Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
 const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
@@ -199,6 +203,8 @@ async function step(st) {
   const [op, ...rest] = st.split(' '); const arg = rest.join(' ');
   log(`input: ${st}`);
   if (op === 'wait') { stepAt = Date.now() + Number(arg) * 1000; return; }
+  // `profile`: profileAll from here, in the background (KDE_PROFILE_SECS)
+  if (op === 'profile') { profileAll(`${((Date.now() - t0) / 1000).toFixed(0)}`).catch((e) => log(`profile: ${e}`)); return; }
   if (op === 'click') {
     let [x, y] = arg.split(',').map(Number);
     // a negative coordinate counts from the page's right or bottom edge (the
