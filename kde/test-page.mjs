@@ -180,6 +180,16 @@ let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
 const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
+// A US keyboard: each character's key, and whether it is shifted
+const plainKeys = { ' ': 'Space', '-': 'Minus', '=': 'Equal', '[': 'BracketLeft', ']': 'BracketRight', '\\': 'Backslash', ';': 'Semicolon', "'": 'Quote', '`': 'Backquote', ',': 'Comma', '.': 'Period', '/': 'Slash' };
+const shiftedKeys = { '_': 'Minus', '+': 'Equal', '{': 'BracketLeft', '}': 'BracketRight', '|': 'Backslash', ':': 'Semicolon', '"': 'Quote', '~': 'Backquote', '<': 'Comma', '>': 'Period', '?': 'Slash', ')': 'Digit0', '!': 'Digit1', '@': 'Digit2', '#': 'Digit3', '$': 'Digit4', '%': 'Digit5', '^': 'Digit6', '&': 'Digit7', '*': 'Digit8', '(': 'Digit9' };
+function keyOf(ch) {
+  if (/[a-z]/.test(ch)) return [`Key${ch.toUpperCase()}`, false];
+  if (/[A-Z]/.test(ch)) return [`Key${ch}`, true];
+  if (/[0-9]/.test(ch)) return [`Digit${ch}`, false];
+  if (plainKeys[ch]) return [plainKeys[ch], false];
+  return [shiftedKeys[ch] ?? '', true];
+}
 async function step(st) {
   const [op, ...rest] = st.split(' '); const arg = rest.join(' ');
   log(`input: ${st}`);
@@ -193,9 +203,14 @@ async function step(st) {
     await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 }, s);
   } else if (op === 'type') {
     for (const ch of arg) {
-      const code = ch === ' ' ? 'Space' : /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : /[0-9]/.test(ch) ? `Digit${ch}` : '';
-      await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, text: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0) }, s);
-      await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0) }, s);
+      // the compositor maps KeyboardEvent.code (a key, not a character), so
+      // a shifted character is Shift and its key
+      const [code, shift] = keyOf(ch);
+      if (!code) { log(`input: no key types ${JSON.stringify(ch)}`); continue; }
+      if (shift) await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16, modifiers: 8 }, s);
+      await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, text: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0), modifiers: shift ? 8 : 0 }, s);
+      await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0), modifiers: shift ? 8 : 0 }, s);
+      if (shift) await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 }, s);
       await new Promise((r) => setTimeout(r, 80));
     }
   } else if (op === 'key') {
