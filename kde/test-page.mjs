@@ -244,6 +244,20 @@ for (;;) {
       for (const w of workers.values()) per.set(w.pid, (per.get(w.pid) ?? 0) + 1);
       const byPid = [...per].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([p, n]) => `${p ?? '?'}:${n}`).join(' ');
       log(`heaps: workers per pid ${byPid}`);
+      // KDE_WHO=1: each Worker's guest thread, asked of the Worker itself
+      // (worker.mjs `__gexWho`); one parked in a wait does not answer
+      if (process.env.KDE_WHO) {
+        const who = await Promise.all([...workers.entries()].map(async ([sid, w]) => {
+          const r = await Promise.race([b.send('Runtime.evaluate', { expression: 'JSON.stringify(globalThis.__gexWho?.() ?? null)', returnByValue: true }, sid), new Promise((res) => setTimeout(() => res(null), 3000))]).catch(() => null);
+          let v = null;
+          try { v = r ? JSON.parse(r.result?.value ?? 'null') : undefined; } catch {}
+          if (v?.pid != null) w.pid = v.pid;
+          return v === undefined ? 'no answer' : v === null ? 'no guest' : `${(v.cmdline || '?').split(' ')[0].split('/').pop()}${v.tid ? ' thread' : ''}`;
+        }));
+        const n = new Map();
+        for (const k of who) n.set(k, (n.get(k) ?? 0) + 1);
+        log(`heaps: workers by program ${[...n].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k}:${c}`).join(', ')}`);
+      }
       log(`heaps: ${ok.length} of ${sizes.length} isolates; used ${sum('usedSize').toFixed(0)} MiB, total ${sum('totalSize').toFixed(0)} MiB, backing stores ${sum('backingStorageSize').toFixed(0)} MiB; page ${((sizes[0]?.totalSize ?? 0) / 1048576).toFixed(0)} MiB`);
     }
     // KDE_SCENE=1: the compositor's frames, windows and scene, each note
