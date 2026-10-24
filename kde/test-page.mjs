@@ -85,11 +85,15 @@ await b.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart:
 const workers = new Map();
 b.on('Target.detachedFromTarget', (p) => workers.delete(p.sessionId));
 b.on('Target.attachedToTarget', async (p) => { workers.set(p.sessionId, { url: p.targetInfo?.url, pid: null }); try { await b.send('Runtime.enable', {}, p.sessionId); await b.send('Runtime.runIfWaitingForDebugger', {}, p.sessionId); } catch {} });
+const markRe = process.env.KDE_MARK ? new RegExp(process.env.KDE_MARK) : null, marked = new Set();
 b.on('Runtime.consoleAPICalled', (p, sid) => {
   const line = p.args.map((a) => a.value ?? a.description ?? '').join(' ');
   const w = workers.get(sid), m = /\[gex:(\d+)\]|\[gex\] pid (\d+):/.exec(line);
   if (w && m) w.pid = Number(m[1] ?? m[2]);
   appendFileSync(join(OUT, 'console.txt'), line + '\n');
+  // KDE_MARK=RE: the first console line each distinct match of RE is on,
+  // logged with its time (`mark:`), e.g. when a program is first exec'd
+  if (markRe) { const mm = markRe.exec(line); if (mm && !marked.has(mm[0])) { marked.add(mm[0]); log(`mark: ${mm[0]}`); } }
   if (/called through a declaration of the wrong type|panic|RuntimeError|wasm trap/i.test(line)) log(`console: ${line.slice(0, 300)}`);
 });
 b.on('Runtime.exceptionThrown', (p) => log(`exception: ${p.exceptionDetails?.exception?.description?.slice(0, 400)}`));
@@ -175,9 +179,9 @@ async function profileAll(at) {
 }
 let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
-// `wait S`, `click X,Y` (page pixels), `type TEXT`, `key NAME` (a DOM key
-// name: Enter, Escape, Tab...), `hold CH N` (a key held for N repeats),
-// `shot`. Each step is logged.
+// `wait S`, `click X,Y` (page pixels; negative from the right or
+// bottom), `type TEXT`, `key NAME` (a DOM key name: Enter, Escape,
+// Tab...), `hold CH N` (a key held for N repeats), `shot`. Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
 const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
@@ -196,7 +200,16 @@ async function step(st) {
   log(`input: ${st}`);
   if (op === 'wait') { stepAt = Date.now() + Number(arg) * 1000; return; }
   if (op === 'click') {
-    const [x, y] = arg.split(',').map(Number);
+    let [x, y] = arg.split(',').map(Number);
+    // a negative coordinate counts from the page's right or bottom edge (the
+    // panel sits at the bottom whatever the window's height)
+    if (x < 0 || y < 0) {
+      const r = await b.send('Runtime.evaluate', { expression: '[innerWidth, innerHeight]', returnByValue: true }, s);
+      const [w, h] = r.result?.value ?? [0, 0];
+      if (x < 0) x += w;
+      if (y < 0) y += h;
+      log(`input: click at ${x},${y} (page ${w}x${h})`);
+    }
     await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
     await new Promise((r) => setTimeout(r, 200));
     await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 }, s);
@@ -270,6 +283,9 @@ for (;;) {
         const n = new Map();
         for (const k of who) n.set(k, (n.get(k) ?? 0) + 1);
         log(`heaps: workers by program ${[...n].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k}:${c}`).join(', ')}`);
+        // and the host's own count, where the page build has one
+        const census = await ev('JSON.stringify(globalThis.__gexHosts?.map((h) => h.census) ?? null)').catch(() => null);
+        if (census && census !== 'null') log(`heaps: host workers ${census.slice(0, 1500)}`);
       }
       log(`heaps: ${ok.length} of ${sizes.length} isolates; used ${sum('usedSize').toFixed(0)} MiB, total ${sum('totalSize').toFixed(0)} MiB, backing stores ${sum('backingStorageSize').toFixed(0)} MiB; page ${((sizes[0]?.totalSize ?? 0) / 1048576).toFixed(0)} MiB`);
     }
