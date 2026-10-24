@@ -15,3 +15,5 @@ usr/share/zoneinfo/Etc/UTC
 # KIO workers, and the first programs, Konsole and Dolphin
 pkg plasma-workspace plasma-desktop milou kio6 libkf6runner6 plasma-integration
 pkg dolphin dolphin-data libdolphinvcs6 konsole konsole-kpart
+# a terminal's everyday commands (ls, cat, ps, ...): the session never runs them
+pkg coreutils procps
