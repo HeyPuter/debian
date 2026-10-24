@@ -176,7 +176,8 @@ async function profileAll(at) {
 let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
 // `wait S`, `click X,Y` (page pixels), `type TEXT`, `key NAME` (a DOM key
-// name: Enter, Escape, Tab...), `shot`. Each step is logged.
+// name: Enter, Escape, Tab...), `hold CH N` (a key held for N repeats),
+// `shot`. Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
 const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
@@ -217,6 +218,15 @@ async function step(st) {
     const vk = keyCodes[arg] ?? 0;
     await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: arg, code: arg, windowsVirtualKeyCode: vk, ...(arg === 'Enter' ? { text: '\r' } : {}) }, s);
     await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: arg, code: arg, windowsVirtualKeyCode: vk }, s);
+  } else if (op === 'hold') {
+    // `hold CH N`: CH held down for N of the browser's repeats (as a user
+    // holding a key gets them, 33 ms apart), then released
+    const [ch, n] = [arg.split(' ')[0], Number(arg.split(' ')[1] ?? 10)];
+    const [code] = keyOf(ch);
+    const ev = (type, autoRepeat) => b.send('Input.dispatchKeyEvent', { type, key: ch, code, windowsVirtualKeyCode: ch.toUpperCase().charCodeAt(0), autoRepeat, ...(type === 'keyDown' ? { text: ch } : {}) }, s);
+    await ev('keyDown', false);
+    for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 33)); await ev('keyDown', true); }
+    await ev('keyUp', false);
   } else if (op === 'shot') await shot();
   else log(`input: unknown step ${op}`);
 }
