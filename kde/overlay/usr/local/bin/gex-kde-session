@@ -57,6 +57,11 @@ if [ -n "${GEX_KDE_STOP_AFTER:-}" ]; then
     end=$(( $(date +%s) + GEX_KDE_STOP_AFTER ))
     (while [ "$(date +%s)" -lt "$end" ]; do sleep 10; done; kill $$) &
 fi
+# GEX_KDE_STOP_FILE=PATH (debugging): the session ends the same way once PATH
+# exists, so a recorded run can stop when what it recorded is done
+if [ -n "${GEX_KDE_STOP_FILE:-}" ]; then
+    (while [ ! -e "$GEX_KDE_STOP_FILE" ]; do sleep 10; done; kill $$) &
+fi
 # GEX_KDE_XLOG=FILE (debugging): the X server's top-level windows, mapped
 # or not, once a minute
 if [ -n "${GEX_KDE_XLOG:-}" ]; then
