@@ -4,6 +4,8 @@
 #
 #   SOURCE  cut DEP      the Build-Depends DEP is left out of SOURCE's build
 #                        (its configure finds no DEP and builds without it)
+#   SOURCE  keep DEP     DEP is a Build-Depends of SOURCE as well: what a
+#                        cut one's own Depends brought the build
 #   SOURCE  drop BIN     the binary package BIN is not built (DH_OPTIONS -N)
 #   SOURCE  cmake VAR=V  CMake cache VAR forced to V, over what debian/rules
 #                        passes (gexcc's toolchain file, after -D)
@@ -250,6 +252,7 @@ qt6-speech drop qt6-speech-speechd-plugin | the speech-dispatcher engine | as ab
 plasma-desktop cut libsdl2-dev            | SDL pulls PulseAudio, PipeWire, ffmpeg | the game controller KCM
 plasma-desktop cut xserver-xorg-dev       | the X server's SDK headers, for the Mouse and Touchpad KCMs' X11 backends (they talk to xf86-input-libinput's properties) | mouse and touchpad settings under X11 (the KCMs build, with no X11 backend)
 plasma-desktop cut xserver-xorg-input-libinput-dev | as above | as above
+plasma-desktop keep libxkbfile-dev       | xserver-xorg-dev, cut above, depends on it, and the keyboard KCM links X11::xkbfile (Debian's control does not name it) | nothing
 plasma-desktop cmake BUILD_KCM_MOUSE_X11=OFF | without the two above the KCM's CMake stops unless the backend is off | as above
 plasma-desktop cmake BUILD_KCM_TOUCHPAD_X11=OFF | as above | as above
 plasma-desktop cut libibus-1.0-dev        | IBus pulls gtk3, dconf, python3-gi | the input method panel's IBus backend (no input methods in the page)

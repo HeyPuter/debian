@@ -63,7 +63,7 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set(), 'suite': set()})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set(), 'suite': set(), 'keep': set()})
         if kind == 'profile':
             c['profile'].add(what)
         elif kind in ('env', 'meson', 'make', 'autoconf'):
@@ -612,6 +612,8 @@ class Builder:
             control = open(os.path.join(srcdir, 'debian/control')).read()
         cut = CUTS.get(name, {}).get('cut', set())
         deps = [(d, q) for d, q in deps_of(control, profiles_of(name)) if d not in cut]
+        # what a cut dependency's own Depends brought the build (cuts.txt keep)
+        deps += [(d, None) for d in sorted(CUTS.get(name, {}).get('keep', set())) if d not in {x for x, _ in deps}]
         debs, needs, lacks = self.target_closure([(d, q if q else '') for d, q in deps])
         return ver, srcdir, debs, needs, lacks
 
