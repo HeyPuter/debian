@@ -66,6 +66,14 @@ for t in chrpath patchelf; do
     [ -e "$C/usr/bin/$t" ] && [ -e "$E/bin/$t" ] &&
         extra+=(--ro-bind "$C/usr/bin/$t" "/usr/lib/gex-cross/$t" --ro-bind "$E/bin/$t" "/usr/bin/$t")
 done
+# meson's install step, at its own path, rewriting a gexcc module's run path
+# as it does an ELF's (meson-depfixer.py)
+d=usr/lib/python3/dist-packages/mesonbuild/scripts/depfixer.py
+if [ -f "$C/$d" ]; then
+    python3 -I "$HERE/meson-depfixer.py" "$C/$d" "$E/meson-depfixer.py.$$" &&
+        mv "$E/meson-depfixer.py.$$" "$E/meson-depfixer.py"
+    extra+=(--ro-bind "$E/meson-depfixer.py" "/$d")
+fi
 # gexcc-exec's machine-wide slots (at most GEXCC_SLOTS gexcs at once): the
 # host's slot files, so builds in here count against the same limit
 slots=${GEXCC_SLOT_DIR:-${XDG_RUNTIME_DIR:-/tmp}/gexcc-slots-$(id -u)}
