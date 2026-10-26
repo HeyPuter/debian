@@ -478,7 +478,10 @@ def main():
     ap.add_argument('--ours-closure', action='store_true',
                     help='only the closure of the roots among our packages in the image (still all in the repo)')
     ap.add_argument('--ours-for', default='',
-                    help='these of our packages stand in for Debian\'s of the same name (a wasm32 program in an arm64 image)')
+                    help='these of our packages stand in for Debian\'s of the same name (a wasm32 program in an arm64 image); '
+                         '"*": every one of ours (the image is ours wherever our pools have the package)')
+    ap.add_argument('--list-native', action='store_true',
+                    help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
     ap.add_argument('--arch', default='arm64',
                     help="Debian's architecture for the tree (amd64: the cross build's chroot)")
@@ -506,7 +509,8 @@ def main():
     ours_for = set(filter(None, a.ours_for.split(',')))
 
     def stands_in(c):
-        return c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed') or c['Package'] in ours_for
+        return (c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed')
+                or c['Package'] in ours_for or '*' in ours_for)
 
     our_names = set()
     for _, c in ours:
@@ -587,6 +591,11 @@ def main():
     if gaps:
         print(f'{len(set(gaps))} dependencies of ours that only Debian\'s {NATIVE} libraries meet (left out):\n  '
               + '\n  '.join(sorted(set(gaps))), file=sys.stderr)
+    if a.list_native:
+        for n in order:
+            if pkgs[n].get('Architecture') == NATIVE:
+                print(f'{n} {pkgs[n].get("Source", n).split(" ")[0]}')
+        return
     native = [(debfetch.fetch(a.cache, pkgs[n]), pkgs[n]) for n in order]
     print(f'{len(native)} Debian packages, {len(image_ours)} of ours', file=sys.stderr)
 
