@@ -66,6 +66,7 @@ qt6-base  cut liblttng-ust-dev            | LTTng userspace tracing (ust, liburc
 qt6-base  exclude qt-android-runner.py   | installed only by an Android-capable host build | nothing (an Android deployment helper)
 qt6-declarative  drop qml6-module-qmltime | its tools built for the target (debian/rules' QT_BUILD_TOOLS_WHEN_CROSSCOMPILING) are qmltime_native, and the module's qmltypes file is named after that | the qmltime benchmark's QML module
 qt6-declarative  exclude qmltime_native  | the dropped module's qmltypes file is left in debian/tmp, which dh_missing fails on | as above
+qt6-declarative  cmake CMAKE_DISABLE_FIND_PACKAGE_Qt6LinguistTools=ON | the sysroot holds every package built so far, qt6-tools's Qt6LinguistTools among them (built after this source on a first pass); Debian's build has none (not a Build-Depends), and with it the qml-i18n example is built, which no package installs and dh_missing fails on | nothing
 dbus      cut libapparmor-dev             | apparmor's source needs apache2-dev (mod_apparmor) | AppArmor mediation in dbus-daemon (gex has no AppArmor)
 dbus      meson apparmor=disabled        | debian/rules passes -Dapparmor=enabled | as above
 libinput  cut libgtk-3-dev                | gtk+3.0 again (only for libinput's debug-gui tool; meson's debug-gui is auto) | `libinput debug-gui`, a developer tool
