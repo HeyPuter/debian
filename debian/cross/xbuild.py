@@ -508,6 +508,10 @@ class Builder:
                 # shared libraries only (a soname's package: libfoo11,
                 # libbar2t64), not what a tool runs on (libpython3.13-stdlib)
                 todo += [(n, None) for n in clause_names(d.strip()) if re.fullmatch(r'lib.*\d(t64)?', n)]
+                # and its data, which a Debian cross build has in its one
+                # /usr/share with the target's package installed (kded6's
+                # D-Bus XML, that kded6-dev's users generate code from)
+                debs.append((self.ours[dep], 'share'))
             if build_side or (p is None and dep in self.chroot_has):
                 # an Arch: all -dev (headers, or a transitional name) goes
                 # to the sysroot only; anything else build-side runs there
