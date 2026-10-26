@@ -104,8 +104,9 @@ qt6-quick3d-dev-tools
 libkf6config-dev-bin
 libkf6doctools-dev
 hspell
-# kf6-knewstuff's build runs the KCM QML module's tooling
-qml6-module-org-kde-kcmutils
 # libkf6package-dev's CMake export names /usr/bin/kpackagetool6 (Multi-Arch:
 # foreign), which kf6-knewstuff's build runs
 kpackagetool6
+# libkf6auth-dev's export names kauth-policy-gen (libkf6auth-dev-bin),
+# which kf6-kio's build runs
+libkf6auth-dev-bin

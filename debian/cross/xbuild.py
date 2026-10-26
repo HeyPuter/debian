@@ -176,15 +176,19 @@ def cmake_install_prefix(text, sysroot):
     the build machine's, which the chroot has there."""
     if re.search(r'add_executable\([^)]*IMPORTED', text):
         return text
-    return re.sub(r'(?<=")/usr/lib/wasm32-linux-musl/cmake/', sysroot + '/usr/lib/wasm32-linux-musl/cmake/', text)
+    text = re.sub(r'(?<=")/usr/lib/wasm32-linux-musl/cmake/', sysroot + '/usr/lib/wasm32-linux-musl/cmake/', text)
+    # a package Config file (configure_package_config_file) says the prefix
+    # outright when the check matches
+    return re.sub(r'(if\(_realCurr STREQUAL _realOrig\)\s*set\(PACKAGE_PREFIX_DIR ")/usr("\))', lambda m: m.group(1) + sysroot + '/usr' + m.group(2), text)
 
 
-def into_sysroot(deb, sysroot, done, chroot=None):
+def into_sysroot(deb, sysroot, done, chroot=None, share_only=False):
     """Unpack a package's target-side files into the sysroot (once), and its
     architecture-independent build files (aclocal macros, libtool's libltdl
     copy) into the chroot's /usr/share as well, where the build machine's
     autoreconf and libtoolize look: a Multi-Arch: same -dev package installs
-    them there in an ordinary cross build."""
+    them there in an ordinary cross build. SHARE_ONLY: usr/share's data
+    alone, and no package database entry (a build machine's package)."""
     if deb in done:
         return
     done.add(deb)
@@ -194,7 +198,7 @@ def into_sysroot(deb, sysroot, done, chroot=None):
         # at in the sysroot: xcb-proto's XML, wayland-protocols' XML,
         # xorg-sgml-doctools' stylesheets; everything but documentation)
         share = os.path.join(t, 'usr/share')
-        subs = ['usr/include', 'usr/lib'] + [
+        subs = ([] if share_only else ['usr/include', 'usr/lib']) + [
             'usr/share/' + d for d in (sorted(os.listdir(share)) if os.path.isdir(share) else [])
             if d not in ('doc', 'man', 'info', 'locale', 'lintian', 'bug', 'doc-base', 'help', 'gtk-doc')]
         for sub in subs:
@@ -220,6 +224,8 @@ def into_sysroot(deb, sysroot, done, chroot=None):
                 fixed = cmake_install_prefix(fixed, sysroot)
                 if fixed != text:
                     open(f, 'w', errors='surrogateescape').write(fixed)
+        if share_only:
+            return
         for sub in ('usr/share/aclocal', 'usr/share/libtool'):
             s = os.path.join(t, sub)
             if chroot and os.path.isdir(s):
@@ -293,6 +299,10 @@ def target_lib(name):
     is taken from the build machine whatever its marking."""
     if re.search(r'-(perl|python|ruby|tcl|java|ocaml|lua|php)$', name) or name.startswith(('python3-', 'ruby-', 'node-')):
         return False
+    # a QML module is the target's (Multi-Arch: same, as a Debian cross build
+    # resolves it): dh_qmldeps reads the target's qmldir files
+    if name.startswith('qml6-module-'):
+        return True
     return name.endswith(('-dev', '-dev-bin')) is False and name.startswith('lib') or name.endswith('-dev')
 
 
@@ -396,10 +406,26 @@ class Builder:
         _, ver, srcdir = r.stdout.split()[:3]
         return ver, srcdir
 
+    def libs_of_source(self, src):
+        """Our shared library packages (libNAME<soversion>) built from SRC."""
+        if getattr(self, '_src_libs_for', None) is not self.ours:
+            m = {}
+            for name, deb in set(self.ours.items()):
+                if not re.fullmatch(r'lib.*\d(t64)?', name):
+                    continue
+                f = subprocess.run(['dpkg-deb', '-f', deb, 'Package', 'Source'], capture_output=True, text=True).stdout
+                d = dict(l.split(': ', 1) for l in f.splitlines() if ': ' in l)
+                if d.get('Package') == name:
+                    m.setdefault((d.get('Source') or name).split(' ')[0], []).append(name)
+            self._src_libs, self._src_libs_for = m, self.ours
+        return self._src_libs.get(src, [])
+
     def target_closure(self, deps):
         """What the target side of DEPS needs in the sysroot: (debs to unpack,
         binaries not built yet, build-machine tools the chroot lacks)."""
         debs, needs, lacks, seen = [], [], [], set()
+        # what a target package depends on (not the source's build-deps)
+        wanted = set()
         todo = list(deps)
         while todo:
             dep, q = todo.pop()
@@ -427,9 +453,18 @@ class Builder:
                 # against, or a sibling it dropped: the -dev package still
                 # names them (dpkg-buildpackage -d leaves debian/control as
                 # it is)
-                c = CUTS.get((f.get('Source') or f.get('Package', '')).split(' ')[0], {})
+                src = (f.get('Source') or f.get('Package', '')).split(' ')[0]
+                c = CUTS.get(src, {})
                 cut = c.get('cut', set()) | c.get('drop', set())
+                wanted.update(n for n in clause_names(f.get('Depends', '')) if n not in cut)
                 todo += [(n, None) for n in clause_names(f.get('Depends', '')) if n not in cut]
+                # and its source's shared libraries: a -dev package's CMake
+                # export names every library of the source, and the
+                # dependencies dh_shlibdeps would add between them (a QML
+                # module on libKirigamiPrimitives) are not computed for wasm
+                # side modules, so a -dev package's Depends can miss one
+                if f.get('Package', '').endswith('-dev'):
+                    todo += [(n, None) for n in self.libs_of_source(src) if n not in cut]
                 continue
             if build_side and q is None and dep in self.ours and not (
                     p is not None and (p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign')):
@@ -451,6 +486,13 @@ class Builder:
                 if p is not None and p.get('Architecture') == 'all' and q != 'native':
                     debs.append(debfetch.fetch(self.cache, p))
                     todo += [(n, None) for n in clause_names(p.get('Depends'))]
+                elif p is not None and p.get('Multi-Arch') == 'foreign' and dep in wanted and dep in self.chroot_has:
+                    # a target package's tool (libkf6doctools-dev on
+                    # kdoctools6): its data is in the one /usr/share of a
+                    # Debian cross build, where the target's CMake package
+                    # looks (KDOCTOOLS_CUSTOMIZATION_DIR); in the sysroot
+                    # too, its programs not
+                    debs.append((debfetch.fetch(self.cache, p), 'share'))
                 continue
             needs.append(dep)
         return debs, needs, lacks
@@ -550,7 +592,10 @@ class Builder:
         if needs or lacks:
             return f'needs {" ".join(needs) or "-"}; chroot lacks {" ".join(lacks) or "-"}'
         for deb in debs:
-            into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
+            if isinstance(deb, tuple):
+                into_sysroot(deb[0], self.sysroot, self.unpacked, share_only=True)
+            else:
+                into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
         log = os.path.join(self.work, 'logs', f'{name}.log')
         env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(profiles_of(name)))}" '
                f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
@@ -687,7 +732,7 @@ def main():
             state[src] = str(e)
             return
         # what the sysroot has from a build a rebuild-forcing fix postdates
-        needs = list(needs) + [n for n in (os.path.basename(d).split('_')[0] for d in debs)
+        needs = list(needs) + [n for n in (os.path.basename(d).split('_')[0] for d in debs if not isinstance(d, tuple))
                                if b.source_of(n) in stale_srcs]
         for bin_ in needs:
             s = b.source_of(bin_)
