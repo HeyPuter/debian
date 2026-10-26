@@ -88,6 +88,22 @@ for t in gcc cc g++ c++ cpp clang clang++ ar ranlib nm objdump strings size read
   case $t in cpp) src=$P/bin/$T-gcc ;; ld) src=$P/bin/$T-ld ;; esac
   [ -e "$src" ] && ln -sfn "$src" "$E/bin/$G-$t"
 done
+# pkg-config: gexcc's, over the sysroot; and, as Debian's cross pkg-config
+# also searches it, the build machine's /usr/share/pkgconfig for a package
+# the sysroot has no .pc of (libwayland-bin's wayland-scanner.pc, whose
+# pkgdatadir is where ECM's FindWayland takes wayland.xml from: a Multi-Arch:
+# foreign package, so only the chroot has it)
+rm -f "$E/bin/$G-pkg-config"
+cat > "$E/bin/$G-pkg-config" <<SH
+#!/bin/sh
+"$P/bin/$T-pkg-config" "\$@" && exit 0
+st=\$?
+for a; do
+    case \$a in -*) ;; *) PKG_CONFIG_LIBDIR=/usr/share/pkgconfig PKG_CONFIG_PATH= pkg-config --exists "\$a" 2>/dev/null || exit \$st ;; esac
+done
+exec env PKG_CONFIG_LIBDIR=/usr/share/pkgconfig PKG_CONFIG_PATH= pkg-config "\$@"
+SH
+chmod +x "$E/bin/$G-pkg-config"
 # meson, with cuts.txt's options for the source being built after the
 # package's own (meson takes the last -D of an option)
 cat > "$E/bin/meson" <<'SH'

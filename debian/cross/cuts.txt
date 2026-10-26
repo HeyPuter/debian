@@ -19,7 +19,7 @@
 #                        options (with_X=no over the rules' --with-X)
 #                        (env and autoconf values: @CROSS@ is this directory,
 #                        @SYSROOT@ the target's sysroot; cmake values take
-#                        @SYSROOT@ too)
+#                        both too)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
 #   SOURCE  arch BIN     BIN's Architecture list (the ports it names) gains
 #                        musl-linux-wasm32, as a port adds itself
@@ -223,6 +223,7 @@ phonon    drop phonon4qt5                  | a Qt 5 package | Phonon for Qt 5 ap
 phonon    drop phonon4qt5-backend-null     | a Qt 5 package | Phonon for Qt 5 apps
 phonon    drop phonon4qt5settings          | a Qt 5 package | Phonon for Qt 5 apps
 phonon    cmake PHONON_BUILD_SETTINGS=OFF  | the settings program is built for Qt 5 only (settings/CMakeLists.txt links Phonon::phonon4qt5), whatever PHONON_BUILD_QT5 says | Phonon's settings program (phonon4qt5settings, dropped above)
+phonon    exclude phonon4qt6widgets        | debian/libphonon4qt6-dev.install takes it from the Qt 5 build's plugin directory (qt5/plugins/designer), where it lands only when Qt 5 is built too | Phonon's widget plugin for Qt Designer
 qt6-multimedia cut libavcodec-dev         | ffmpeg pulls SDL, PulseAudio, PipeWire, x264, vlc; Qt only builds its ffmpeg backend with PulseAudio on Linux | RUNTIME: Qt Multimedia has no media backend (no audio/video playback; ALSA output only): Konsole's bell sound, KNotifyConfig's sound preview, Prison's camera scanner
 qt6-multimedia cut libavdevice-dev        | as above | as above
 qt6-multimedia cut libavfilter-dev        | as above | as above
@@ -355,6 +356,6 @@ qt6-tools  cmake CMAKE_DISABLE_FIND_PACKAGE_Qt6QmlLSPrivate=TRUE | qt6-declarati
 qt6-tools  exclude designer/libcontainerextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcontainerextension.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libcustomwidgetplugin | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcustomwidgetplugin.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libtaskmenuextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libtaskmenuextension.so (Designer itself and the qquickwidget plugin stay)
-kf6-kguiaddons  cmake PlasmaWaylandProtocols_DIR=/usr/lib/x86_64-linux-gnu/cmake/PlasmaWaylandProtocols | plasma-wayland-protocols is Multi-Arch: foreign (protocol XML for the build machine's wayland-scanner), so it is in the chroot, with its CMake file in the build machine's multiarch directory, which a sysroot search does not reach | nothing
-kf6-kwindowsystem  cmake PlasmaWaylandProtocols_DIR=/usr/lib/x86_64-linux-gnu/cmake/PlasmaWaylandProtocols | as kf6-kguiaddons | nothing
+kf6-kguiaddons  cmake PlasmaWaylandProtocols_DIR=@CROSS@/cmake/PlasmaWaylandProtocols | plasma-wayland-protocols is Multi-Arch: foreign (protocol XML for the build machine's wayland-scanner), so it is only in the chroot, in the build machine's multiarch directory, which a sysroot search does not reach, and its version file refuses a 32-bit target; cmake/PlasmaWaylandProtocols here is that package without the 32/64-bit check | nothing
+kf6-kwindowsystem  cmake PlasmaWaylandProtocols_DIR=@CROSS@/cmake/PlasmaWaylandProtocols | as kf6-kguiaddons | nothing
 kf6-kirigami  cmake KDE_INSTALL_APP_TEMPLATES=ON | ECM leaves KDevelop's app templates out of a cross build by default, and libkirigami-dev's .install lists them | nothing (Debian's own content)

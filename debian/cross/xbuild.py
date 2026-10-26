@@ -570,18 +570,14 @@ class Builder:
             # @CROSS@: this directory (in-chroot.sh binds it read-only);
             # @SYSROOT@: the target's
             env += ''.join(f' {e.replace("@CROSS@", HERE).replace("@SYSROOT@", sysroot)}' for e in c['env'])
-        # every CMake build: KDE Frameworks' build-machine tools
-        # (kconfig_compiler_kf6, the KF6*ToolingTargets) are the chroot's,
-        # found through KF6_HOST_TOOLING as a KF6 cross build is told; the
-        # target's own CMake files would name the target's (wasm) programs
-        cmake_vars = [('KF6_HOST_TOOLING', '/usr/lib/x86_64-linux-gnu/cmake')] + (c['cmake'] if c else [])
+        cmake_vars = c['cmake'] if c else []
         if cmake_vars:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
             with open(init, 'w') as f:
                 for var, val in cmake_vars:
                     kind = 'BOOL' if val.upper() in ('ON', 'OFF', 'TRUE', 'FALSE') else 'STRING'
-                    val = val.replace('@SYSROOT@', sysroot)
+                    val = val.replace('@SYSROOT@', sysroot).replace('@CROSS@', HERE)
                     f.write(f'set({var} {val} CACHE {kind} "cuts.txt" FORCE)\n')
             env += f' GEXCC_CMAKE_INIT={init}'
         if c and c['meson']:
