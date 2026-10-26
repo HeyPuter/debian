@@ -257,6 +257,7 @@ plasma-desktop cmake BUILD_KCM_MOUSE_X11=OFF | without the two above the KCM's C
 plasma-desktop cmake BUILD_KCM_TOUCHPAD_X11=OFF | as above | as above
 plasma-desktop cut libibus-1.0-dev        | IBus pulls gtk3, dconf, python3-gi | the input method panel's IBus backend (no input methods in the page)
 plasma-desktop cut libscim-dev            | SCIM pulls gtk3 | the input method panel's SCIM backend
+plasma-desktop exclude */libexec/        | the .install line for the input method panels' helpers (kimpanel-ibus-panel, kimpanel-scim-panel), which the two cuts above stop the build making | as above
 plasma-desktop cut libaccounts-qt6-dev    | as libkaccounts6-dev (signond, libaccounts-glib) | as libkaccounts6-dev
 plasma-desktop cut signon-plugin-oauth2-dev | as above | as above
 plasma-desktop cut signon-plugins-dev     | as above | as above
