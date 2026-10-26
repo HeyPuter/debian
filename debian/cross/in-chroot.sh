@@ -66,6 +66,13 @@ for t in chrpath patchelf; do
     [ -e "$C/usr/bin/$t" ] && [ -e "$E/bin/$t" ] &&
         extra+=(--ro-bind "$C/usr/bin/$t" "/usr/lib/gex-cross/$t" --ro-bind "$E/bin/$t" "/usr/bin/$t")
 done
+# a target library its package puts in /usr/lib itself, not the multiarch
+# directory (ebook-tools' libepub.so.0, as Debian has it): at that path too,
+# where dpkg-shlibdeps looks for it (the build machine's /usr/lib has none
+# of the name)
+for f in "$P"/sysroot/usr/lib/*.so*; do
+    [ -e "$f" ] && [ ! -e "$C/usr/lib/${f##*/}" ] && extra+=(--ro-bind "$f" "/usr/lib/${f##*/}")
+done
 # meson's install step, at its own path, rewriting a gexcc module's run path
 # as it does an ELF's (meson-depfixer.py)
 d=usr/lib/python3/dist-packages/mesonbuild/scripts/depfixer.py
