@@ -306,9 +306,23 @@ def sysroot_list(db, deb, ctl, name):
         n = n.rstrip('/')
         if n:
             paths.append(n)
+    # (and each library under /usr/lib by its /lib name too, as the merged
+    # /usr finds it: dpkg-shlibdeps searches /lib/TRIPLET first and asks
+    # dpkg which package holds the path it found)
+    paths += ['/lib/' + x[len('/usr/lib/'):] for x in paths if x.startswith('/usr/lib/wasm32-linux-musl/')]
     with open(os.path.join(db, 'info', stem + '.list.new'), 'w') as f:
         f.write('\n'.join(paths) + '\n')
     os.replace(os.path.join(db, 'info', stem + '.list.new'), os.path.join(db, 'info', stem + '.list'))
+    # and its shlibs and symbols files, which dpkg-shlibdeps reads for the
+    # dependency a binary linking the library gets
+    with tempfile.TemporaryDirectory() as t:
+        subprocess.run(['dpkg-deb', '-e', deb, t], check=True)
+        for kind in ('shlibs', 'symbols'):
+            f = os.path.join(db, 'info', f'{stem}.{kind}')
+            if os.path.exists(os.path.join(t, kind)):
+                shutil.copyfile(os.path.join(t, kind), f)
+            elif os.path.exists(f):
+                os.remove(f)
 
 
 def target_lib(name):

@@ -94,6 +94,10 @@ Priority: optional
 Description: OpenGL, EGL and GBM headers for gex
  Khronos and GBM headers and pkg-config files, over gex's guest GL driver.
 EOF
+# its shlibs file: what a program linking one of the libraries depends on
+for f in "$L"/*.so.*; do
+    n=$(basename "$f"); echo "${n%%.so.*} ${n##*.so.} gex-gl (>= $VER)"
+done > "$T/lib/DEBIAN/shlibs"
 dpkg-deb --root-owner-group -b "$T/lib" "$W/debs/gex-gl_${VER}_musl-linux-wasm32.deb" >/dev/null
 dpkg-deb --root-owner-group -b "$T/dev" "$W/debs/gex-gl-dev_${VER}_musl-linux-wasm32.deb" >/dev/null
 echo "gex-gl $VER: $(ls "$L" | tr '\n' ' ')"

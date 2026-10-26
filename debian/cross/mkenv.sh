@@ -83,6 +83,47 @@ if 'WASM:32' not in s:
     assert s.count('WASM:32') == 1 and s.count('"\\0asm"') == 2, 'Objdump.pm changed'
     open(p, 'w').write(s)
 PY
+# and a program, the module in its ELF container (right after the ELF
+# header and the program headers)
+python3 -I - "$E/host/usr/share/perl5/Dpkg/Shlibs/Objdump.pm" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if 'ELF container' not in s:
+    s = s.replace("    my $rc = read $fh, $header, 64;", "    my $rc = read $fh, $header, 4096;", 1)
+    s = s.replace("    } elsif ($rc != 64) {", "    } elsif ($rc < 64) {", 1)
+    s = s.replace("""    return unless $elf{magic} eq "\\x7fELF";""",
+                  """    # a gexcc program: the wasm module in its ELF container
+    return $format{$file} = 'WASM:32:l:wasm32:0'
+        if $elf{magic} eq "\\x7fELF" and index($header, "\\0asm\\x01\\0\\0\\0") > 0;
+    return unless $elf{magic} eq "\\x7fELF";""", 1)
+    assert 'read $fh, $header, 4096' in s and '$rc < 64' in s and s.count('WASM:32') == 2, 'Objdump.pm changed'
+    open(p, 'w').write(s)
+PY
+# dh_shlibdeps takes an ELF file that is not statically linked (by file(1));
+# a side module, and a program's container (which file(1) calls static),
+# are both dynamically linked wasm
+python3 -I - "$E/host/usr/bin/dh_shlibdeps" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if 'gexcc' not in s:
+    old = """		return 1 if $ff =~ m/ELF/ && $ff !~ /statically linked/;
+		return 0;"""
+    new = """		return 1 if $ff =~ m/ELF/ && $ff !~ /statically linked/;
+		# gexcc's: a side module, or a program's ELF container
+		open(my $fd, '<:raw', $file) or return 0;
+		my $n = read($fd, my $head, 4096);
+		close($fd);
+		return 1 if ($n // 0) >= 8 and (substr($head, 0, 4) eq "\\0asm" or (substr($head, 0, 4) eq "\\x7fELF" and index($head, "\\0asm\\x01\\0\\0\\0") > 0 and index($head, 'dylink.0') > 0));
+		return 0;"""
+    assert s.count(old) == 1, 'dh_shlibdeps changed'
+    s = s.replace(old, new, 1)
+    old = "				return if not is_so_or_exec_elf_file($fn);"
+    assert s.count(old) == 1, 'dh_shlibdeps changed'
+    s = s.replace(old, "				return if not is_so_or_exec_elf_file($fn) and not is_wasm_side_module($fn);", 1)
+    open(p, 'w').write(s)
+PY
 for t in gcc cc g++ c++ cpp clang clang++ ar ranlib nm objdump strings size readelf objcopy strip ld pkg-config; do
   src=$P/bin/$T-$t
   case $t in cpp) src=$P/bin/$T-gcc ;; ld) src=$P/bin/$T-ld ;; esac

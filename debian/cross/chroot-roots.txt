@@ -113,3 +113,6 @@ libkf6auth-dev-bin
 # libkf6kcmutils-dev's tooling export names kcmdesktopfilegenerator
 # (libkf6kcmutils-bin), which libplasma's build runs
 libkf6kcmutils-bin
+# packagekit-qt's build reads PackageKit's D-Bus interface XML (packagekit,
+# Multi-Arch: foreign)
+packagekit
