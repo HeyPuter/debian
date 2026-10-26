@@ -45,6 +45,12 @@ const server = createServer((req, res) => {
   const size = statSync(f).size;
   served += size;
   res.writeHead(200, { ...h, 'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Content-Length': size });
+  // KDE_NETLOG=1: each request served, when it came and when its last byte
+  // was handed over (seconds from start), as OUT/net.txt
+  if (process.env.KDE_NETLOG) {
+    const at = ((Date.now() - t0) / 1000).toFixed(3), rel = f.slice(SITE.length);
+    res.on('finish', () => appendFileSync(join(OUT, 'net.txt'), `${at} ${((Date.now() - t0) / 1000).toFixed(3)} ${size} ${rel}\n`));
+  }
   createReadStream(f).pipe(res);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));

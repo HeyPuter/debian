@@ -67,6 +67,20 @@ fi
 if [ -n "${GEX_KDE_XLOG:-}" ]; then
     (while :; do sleep 60; { date +%T; xwininfo -root -tree; } >> "$GEX_KDE_XLOG" 2>&1; done) &
 fi
+# GEX_KDE_XACTIVE=1 (debugging): each window that becomes the active one, by
+# its class, when it does (a new window is made active as it is mapped), so
+# a launch can be timed to its window
+if [ "${GEX_KDE_XACTIVE:-0}" = 1 ]; then
+    (until xprop -root _NET_ACTIVE_WINDOW >/dev/null 2>&1; do sleep 5; done
+     # line-buffered: xprop's stdio holds a pipe's output in a block
+     lb=; command -v stdbuf >/dev/null && lb='stdbuf -oL'
+     $lb xprop -root -spy _NET_ACTIVE_WINDOW | while read -r line; do
+         id=${line##* }
+         case $id in 0x*) ;; *) continue ;; esac
+         [ "$id" = 0x0 ] && continue
+         echo "gex-kde-session: active $(xprop -id "$id" WM_CLASS 2>/dev/null | sed 's/.*= //')"
+     done) &
+fi
 # GEX_KDE_LISTHOME=SECONDS (debugging): what the session has made in the
 # home directory's config and data then (shell globs: an ejected tree may
 # have no ls)

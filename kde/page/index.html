@@ -77,6 +77,8 @@ const app = await start({
     hostx: true,
     hostxRootful: true,
     switches: site.switches ?? {},
+    // the units' keys, from the build (mksite.sh)
+    identities: site.identities ?? null,
   },
   onLog: (s) => {
     out += s;

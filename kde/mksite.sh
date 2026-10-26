@@ -69,7 +69,14 @@ switches = {'cgen': '1', 'cgenurl': 'units', 'elfunits': ','.join(names), 'pins'
 # the project's own region above the placement window, when its libraries have one
 if int(m.get('pin_region', '0x0'), 16):
     switches['pinregion'] = m['pin_region']
-json.dump({'tar': ['kde.tar'], 'env': [], 'switches': switches}, open(sys.argv[2], 'w'), indent=1)
+# each unit's key and its object's identity as placed (`base:key:identity:
+# path`), which the page takes rather than hashing every object in every
+# process that maps it; a build from before the eject recorded them has none
+ids = ';'.join(f"{int(i['base'], 16):x}:{i['identity']}:{i['image']}:{i['path']}" for i in units if i.get('image'))
+site = {'tar': ['kde.tar'], 'env': [], 'switches': switches}
+if ids:
+    site['identities'] = ids
+json.dump(site, open(sys.argv[2], 'w'), indent=1)
 print(f'units: {len(units)} objects, {len(pins)} pins')
 PY
 else
