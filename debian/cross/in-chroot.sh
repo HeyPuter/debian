@@ -69,9 +69,9 @@ done
 # a target library its package puts in /usr/lib itself, not the multiarch
 # directory (ebook-tools' libepub.so.0, as Debian has it): at that path too,
 # where dpkg-shlibdeps looks for it (the build machine's /usr/lib has none
-# of the name)
+# of the name; an empty file there is the mount point an earlier run left)
 for f in "$P"/sysroot/usr/lib/*.so*; do
-    [ -e "$f" ] && [ ! -e "$C/usr/lib/${f##*/}" ] && extra+=(--ro-bind "$f" "/usr/lib/${f##*/}")
+    [ -e "$f" ] && [ ! -s "$C/usr/lib/${f##*/}" ] && extra+=(--ro-bind "$f" "/usr/lib/${f##*/}")
 done
 # meson's install step, at its own path, rewriting a gexcc module's run path
 # as it does an ELF's (meson-depfixer.py)
