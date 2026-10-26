@@ -95,3 +95,14 @@ zip
 dh-cruft
 # krb5 (compile_et, mk_cmds: scripts that write C)
 comerr-dev ss-dev
+# qt6-quick3d cross-builds against its own build-machine tools (balsam, shadergen)
+qt6-quick3d-dev
+qt6-quick3d-dev-tools
+# KF6's build-machine tools a cross build runs (kconfig_compiler_kf6,
+# meinproc6: KF6_HOST_TOOLING), and sonnet's Hebrew spell checker, which its
+# configure runs
+libkf6config-dev-bin
+libkf6doctools-dev
+hspell
+# kf6-knewstuff's build runs the KCM QML module's tooling
+qml6-module-org-kde-kcmutils

@@ -222,6 +222,7 @@ phonon    drop libphonon4qt5experimental4t64 | a Qt 5 package | Phonon for Qt 5 
 phonon    drop phonon4qt5                  | a Qt 5 package | Phonon for Qt 5 apps
 phonon    drop phonon4qt5-backend-null     | a Qt 5 package | Phonon for Qt 5 apps
 phonon    drop phonon4qt5settings          | a Qt 5 package | Phonon for Qt 5 apps
+phonon    cmake PHONON_BUILD_SETTINGS=OFF  | the settings program is built for Qt 5 only (settings/CMakeLists.txt links Phonon::phonon4qt5), whatever PHONON_BUILD_QT5 says | Phonon's settings program (phonon4qt5settings, dropped above)
 qt6-multimedia cut libavcodec-dev         | ffmpeg pulls SDL, PulseAudio, PipeWire, x264, vlc; Qt only builds its ffmpeg backend with PulseAudio on Linux | RUNTIME: Qt Multimedia has no media backend (no audio/video playback; ALSA output only): Konsole's bell sound, KNotifyConfig's sound preview, Prison's camera scanner
 qt6-multimedia cut libavdevice-dev        | as above | as above
 qt6-multimedia cut libavfilter-dev        | as above | as above
@@ -230,6 +231,7 @@ qt6-multimedia cut libavutil-dev          | as above | as above
 qt6-multimedia cut libswscale-dev         | as above | as above
 qt6-multimedia cut libpulse-dev           | PulseAudio (as libcanberra) | as above
 qt6-multimedia cut libpipewire-0.3-dev    | PipeWire (as plasma-workspace) | as above
+qt6-multimedia cut libpipewire-0.3-0t64   | debian/control names it in libqt6multimedia6's Depends (Qt opens it at run time), so every source built against Qt Multimedia would need PipeWire; the -dev is cut above | nothing more than above
 qt6-multimedia cut libgstreamer1.0-dev    | GStreamer pulls gobject-introspection and CPython | as above
 qt6-multimedia cut libgstreamer-plugins-base1.0-dev | as above | as above
 qt6-multimedia exclude libffmpegmediaplugin | the ffmpeg backend is not built | as above
@@ -349,3 +351,10 @@ policykit-1 exclude .gir                 | the -dev packages list their .gir | a
 p11-kit   autoconf with_systemd=no        | configure looks for libsystemd itself and finds the sysroot's systemd (not a Build-Depends: Debian's build has none), whose user units debian/*.install does not list | nothing (Debian's p11-kit has no socket activation either)
 libgit2   cut libkrb5-dev                | its FindGSSAPI runs krb5-config, a script of the target's krb5 that names the target's headers by absolute paths | Kerberos (GSSAPI) authentication of git over HTTP and SSH (kate's git plugin)
 libgit2   cmake USE_GSSAPI=OFF           | debian/rules passes -DUSE_GSSAPI=ON | as above
+qt6-tools  cmake CMAKE_DISABLE_FIND_PACKAGE_Qt6QmlLSPrivate=TRUE | qt6-declarative-dev ships the QmlLS target's CMake files without its static library (Debian lists libQt6QmlLS.a as not installed), so importing the target fails against a sysroot | Qt Assistant's help-engine plugin (helpplugin), which Debian does not ship
+qt6-tools  exclude designer/libcontainerextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcontainerextension.so (Designer itself and the qquickwidget plugin stay)
+qt6-tools  exclude designer/libcustomwidgetplugin | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcustomwidgetplugin.so (Designer itself and the qquickwidget plugin stay)
+qt6-tools  exclude designer/libtaskmenuextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libtaskmenuextension.so (Designer itself and the qquickwidget plugin stay)
+kf6-kguiaddons  cmake PlasmaWaylandProtocols_DIR=/usr/lib/x86_64-linux-gnu/cmake/PlasmaWaylandProtocols | plasma-wayland-protocols is Multi-Arch: foreign (protocol XML for the build machine's wayland-scanner), so it is in the chroot, with its CMake file in the build machine's multiarch directory, which a sysroot search does not reach | nothing
+kf6-kwindowsystem  cmake PlasmaWaylandProtocols_DIR=/usr/lib/x86_64-linux-gnu/cmake/PlasmaWaylandProtocols | as kf6-kguiaddons | nothing
+kf6-kirigami  cmake KDE_INSTALL_APP_TEMPLATES=ON | ECM leaves KDevelop's app templates out of a cross build by default, and libkirigami-dev's .install lists them | nothing (Debian's own content)

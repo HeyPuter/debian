@@ -164,6 +164,21 @@ def built_debs(work):
     return out
 
 
+def cmake_install_prefix(text, sysroot):
+    """A CMake export's check of where it was installed, made the sysroot's.
+
+    The export compares its own directory, resolved, with the one it was
+    installed in (/usr/lib/wasm32-linux-musl/cmake/PKG) and, if they are the
+    same, takes /usr as the prefix of its headers and libraries. The chroot's
+    /usr/lib/wasm32-linux-musl is a link to the sysroot's, so the two match and
+    the headers would be looked for in the chroot's /usr/include. An
+    export of programs (Qt's and KDE's tools) keeps /usr: its programs are
+    the build machine's, which the chroot has there."""
+    if re.search(r'add_executable\([^)]*IMPORTED', text):
+        return text
+    return re.sub(r'(?<=")/usr/lib/wasm32-linux-musl/cmake/', sysroot + '/usr/lib/wasm32-linux-musl/cmake/', text)
+
+
 def into_sysroot(deb, sysroot, done, chroot=None):
     """Unpack a package's target-side files into the sysroot (once), and its
     architecture-independent build files (aclocal macros, libtool's libltdl
@@ -202,6 +217,7 @@ def into_sysroot(deb, sysroot, done, chroot=None):
                     continue
                 text = open(f, errors='surrogateescape').read()
                 fixed = re.sub(r'(?<=["; ])/usr/include(?=[/";\s])', sysroot + '/usr/include', text)
+                fixed = cmake_install_prefix(fixed, sysroot)
                 if fixed != text:
                     open(f, 'w', errors='surrogateescape').write(fixed)
         for sub in ('usr/share/aclocal', 'usr/share/libtool'):
@@ -239,6 +255,34 @@ def into_sysroot(deb, sysroot, done, chroot=None):
     with open(st + '.new', 'w') as f:
         f.write('\n\n'.join(keep + ['\n'.join(lines)]) + '\n')
     os.replace(st + '.new', st)
+    # and its files, so a search by path finds it (dh_qmldeps asks which
+    # package holds the qmldir of each QML module a module imports)
+    sysroot_list(db, deb, ctl, name)
+
+
+def sysroot_list(db, deb, ctl, name):
+    """dpkg's file list of `deb` in the package database `db`: info/PKG.list,
+    PKG:ARCH for a Multi-Arch: same package, as dpkg names it."""
+    same = re.search(r'^Multi-Arch: same$', ctl, re.M)
+    arch = re.search(r'^Architecture: (\S+)', ctl, re.M).group(1)
+    stem = f'{name}:{arch}' if same else name
+    # the multiarch layout of info/ (PKG:ARCH names); without it dpkg looks
+    # for PKG.list
+    fmt = os.path.join(db, 'info', 'format')
+    if not os.path.exists(fmt):
+        with open(fmt, 'w') as f:
+            f.write('1\n')
+    out = subprocess.run(['dpkg-deb', '--fsys-tarfile', deb], capture_output=True, check=True).stdout
+    names = subprocess.run(['tar', '-t'], input=out, capture_output=True, check=True).stdout.decode(errors='replace')
+    paths = ['/.']
+    for n in names.splitlines():
+        n = n[1:] if n.startswith('.') else n
+        n = n.rstrip('/')
+        if n:
+            paths.append(n)
+    with open(os.path.join(db, 'info', stem + '.list.new'), 'w') as f:
+        f.write('\n'.join(paths) + '\n')
+    os.replace(os.path.join(db, 'info', stem + '.list.new'), os.path.join(db, 'info', stem + '.list'))
 
 
 def target_lib(name):
@@ -526,11 +570,16 @@ class Builder:
             # @CROSS@: this directory (in-chroot.sh binds it read-only);
             # @SYSROOT@: the target's
             env += ''.join(f' {e.replace("@CROSS@", HERE).replace("@SYSROOT@", sysroot)}' for e in c['env'])
-        if c and c['cmake']:
+        # every CMake build: KDE Frameworks' build-machine tools
+        # (kconfig_compiler_kf6, the KF6*ToolingTargets) are the chroot's,
+        # found through KF6_HOST_TOOLING as a KF6 cross build is told; the
+        # target's own CMake files would name the target's (wasm) programs
+        cmake_vars = [('KF6_HOST_TOOLING', '/usr/lib/x86_64-linux-gnu/cmake')] + (c['cmake'] if c else [])
+        if cmake_vars:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
             with open(init, 'w') as f:
-                for var, val in c['cmake']:
+                for var, val in cmake_vars:
                     kind = 'BOOL' if val.upper() in ('ON', 'OFF', 'TRUE', 'FALSE') else 'STRING'
                     val = val.replace('@SYSROOT@', sysroot)
                     f.write(f'set({var} {val} CACHE {kind} "cuts.txt" FORCE)\n')

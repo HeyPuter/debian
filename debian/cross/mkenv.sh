@@ -158,12 +158,13 @@ SH
 chmod +x "$E/bin/dh_qmldeps"
 # dpkg-query: a query naming a package of the target architecture
 # (PKG:musl-linux-wasm32) is answered from the sysroot's package database,
-# which xbuild keeps as it unpacks the target's packages there; any other,
-# from the build machine's
+# which xbuild keeps as it unpacks the target's packages there, and so is a
+# search for one of the target's paths (dh_qmldeps looks up the qmldir files
+# of the QML modules a module imports); any other, from the build machine's
 cat > "$E/bin/dpkg-query" <<SH
 #!/bin/sh
 for a; do
-    case \$a in *:musl-linux-wasm32) exec /usr/bin/dpkg-query --admindir=$P/sysroot/var/lib/dpkg "\$@" ;; esac
+    case \$a in *:musl-linux-wasm32|*/wasm32-linux-musl/*) exec /usr/bin/dpkg-query --admindir=$P/sysroot/var/lib/dpkg "\$@" ;; esac
 done
 exec /usr/bin/dpkg-query "\$@"
 SH
