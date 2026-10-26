@@ -10,6 +10,13 @@
 # POOL: directories of our .debs (mkdebs.py's pool, xbuild.py's WORK/debs);
 # for a package in more than one, the later pool's copy. The Debian cache is
 # $DEB_CACHE (default out/deb).
+#
+# GEXCC_PREFIX: the gexcc install our packages were built with (its
+# libc.so goes into the tree).
+#
+# OURS_FOR=PKG,...: these of ours replace Debian's of the same name even
+# where Debian's is an arm64 program (Konsole as wasm32 in an otherwise
+# arm64 Plasma), with the libraries they load
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
@@ -28,8 +35,17 @@ for p in "$@"; do
     done
 done
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
-python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure
-cp -a "$HERE/overlay/." "$O/tree/"
+python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure ${OURS_FOR:+--ours-for "$OURS_FOR"}
+# gexcc's libc.so, which its shared programs and libraries (GEXCC_SHARED,
+# as xbuild.py builds them) load: no Debian package has it
+if [ -n "${GEXCC_PREFIX:-}" ]; then
+    mkdir -p "$O/tree/usr/lib/wasm32-linux-musl"
+    cp "$GEXCC_PREFIX/sysroot/lib/libc.so" "$O/tree/usr/lib/wasm32-linux-musl/libc.so"
+fi
+# (through the tree's /bin -> usr/bin when it is merged, where the
+# overlay's /bin/bash link would replace bash with a link to itself)
+ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
+tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
 XDG_DATA_DIRS="$O/tree/usr/share" update-mime-database "$O/tree/usr/share/mime"
 [ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
 "$HERE/sycoca.sh" "$O/tree"

@@ -13,6 +13,8 @@
 # (kde/sycoca.sh: it has to be the final tree's, or every session rebuilds
 # it) and is tarred here.
 #
+# ADD=DIR: laid over the tree after FULL's files.
+#
 # UNITS=EJECT_PROJECT: serve that project's function-tier units (its
 # build/cgen, as OUT/units) and switch them on: each listed object
 # (build.json's "elf-unit" images) placed at its pinned base runs its unit.
@@ -33,6 +35,9 @@ if [ -d "$TAR" ]; then
           python3 -I "$HERE/pkgfiles.py" "$FULL" "$TAR" $(sed -n 's/^pkg //p' "$HERE/site-files.txt"); } |
             tar -C "$FULL" -cf - -T - | tar -C "$TAR" --recursive-unlink -xf -
     fi
+    # ADD=DIR: a tree laid over it after FULL's files (programs of another
+    # architecture in place of the tree's, with their libraries)
+    [ -n "${ADD:-}" ] && tar -C "$ADD" -cf - . | tar -C "$TAR" --keep-directory-symlink -xf -
     cp -a "$HERE/overlay/." "$TAR/"
     "$HERE/sycoca.sh" "$TAR" > /dev/null
     (cd "$TAR" && tar --owner=0 --group=0 -cf "$OUT/kde.tar" $(ls -A))

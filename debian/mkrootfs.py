@@ -365,6 +365,106 @@ def configure(root, ours, native_pkgs, debian=None):
     w('var/lib/dpkg/triggers/Unincorp', '')
 
 
+def leb(w, p):
+    r = sh = 0
+    while True:
+        x = w[p]; p += 1
+        r |= (x & 0x7f) << sh; sh += 7
+        if not x & 0x80:
+            return r, p
+
+
+def wasm_needed(w):
+    """The libraries a wasm module (a gexcc side module, or the module in a
+    gexcc program's ELF container) loads: dylink.0's NEEDED, or None for
+    any other file."""
+    if w[:4] == b'\x7fELF':
+        i = w.find(b'\0asm\x01\0\0\0', 0, 4096)
+        if i < 0:
+            return None
+        w = w[i:]
+    if w[:4] != b'\0asm':
+        return None
+    p = 8
+    while p + 1 < len(w):
+        sid = w[p]; n, q = leb(w, p + 1)
+        if sid != 0:
+            return None  # dylink.0 is the first section
+        ln, r = leb(w, q)
+        if w[r:r + ln] != b'dylink.0':
+            return None
+        r += ln; end = q + n; needed = []
+        while r < end:
+            kind = w[r]; sl, r = leb(w, r + 1)
+            if kind == 2:
+                cnt, t = leb(w, r)
+                for _ in range(cnt):
+                    m, t = leb(w, t); needed.append(w[t:t + m].decode('utf-8', 'replace')); t += m
+            r += sl
+        return needed
+    return None
+
+
+def needs_of_ours(ours, cache_file):
+    """Package dependencies of our packages from the libraries their
+    programs and libraries load, by the shlibs files of ours: gexcc's
+    modules are not ELF, so dh_shlibdeps wrote none into Depends. Cached by
+    .deb (path, size, mtime) in CACHE_FILE."""
+    import json
+    try:
+        cache = json.load(open(cache_file))
+    except (OSError, ValueError):
+        cache = {}
+    soname_pkg = {}
+    out, fresh = {}, {}
+    for deb, c in ours:
+        if c.get('Architecture') != OURS_ARCH:
+            continue
+        st = os.stat(deb)
+        key = f'{os.path.realpath(deb)}:{st.st_size}:{int(st.st_mtime)}'
+        ent = cache.get(key)
+        if ent is None:
+            shl = control_member(deb, 'shlibs') or ''
+            sonames = []
+            for line in shl.splitlines():
+                f = line.split()
+                if len(f) >= 3 and not line.startswith('#'):
+                    sonames.append((f'{f[0]}.so.{f[1]}', f[2]))
+            needed = set()
+            data = subprocess.run(['dpkg-deb', '--fsys-tarfile', deb], capture_output=True, check=True).stdout
+            with tarfile.open(fileobj=io.BytesIO(data)) as tf:
+                for m in tf:
+                    # (and a library's file name: a package built before
+                    # its shlibs file was written has none)
+                    base = m.name.rsplit('/', 1)[-1]
+                    if '/wasm32-linux-musl/' in m.name and re.fullmatch(r'lib.+\.so\.\d+', base):
+                        sonames.append((base, c['Package']))
+                    if not m.isfile() or m.size < 8:
+                        continue
+                    fh = tf.extractfile(m)
+                    head = fh.read(8)
+                    if head[:4] not in (b'\0asm', b'\x7fELF'):
+                        continue
+                    n = wasm_needed(head + fh.read())
+                    if n:
+                        needed.update(n)
+            ent = {'sonames': sonames, 'needed': sorted(needed)}
+        fresh[key] = ent
+        for so, pkg in ent['sonames']:
+            soname_pkg.setdefault(so, pkg)
+        out[c['Package']] = ent['needed']
+    try:
+        with open(cache_file + '.new', 'w') as f:
+            json.dump(fresh, f)
+        os.replace(cache_file + '.new', cache_file)
+    except OSError:
+        pass
+    deps = {}
+    for name, needed in out.items():
+        deps[name] = sorted({soname_pkg[n] for n in needed if n in soname_pkg and soname_pkg[n] != name})
+    return deps
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--pool', default=os.path.expanduser('~/gex-sandbox/scratch/CC/debian/pool'))
@@ -377,6 +477,8 @@ def main():
     ap.add_argument('--ours', default='', help='only these of our packages in the image (still all in the repo)')
     ap.add_argument('--ours-closure', action='store_true',
                     help='only the closure of the roots among our packages in the image (still all in the repo)')
+    ap.add_argument('--ours-for', default='',
+                    help='these of our packages stand in for Debian\'s of the same name (a wasm32 program in an arm64 image)')
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
     ap.add_argument('--arch', default='arm64',
                     help="Debian's architecture for the tree (amd64: the cross build's chroot)")
@@ -401,8 +503,10 @@ def main():
     def provided(c):
         return [item.strip().split(' ')[0] for item in c.get('Provides', '').split(',') if item.strip()]
 
+    ours_for = set(filter(None, a.ours_for.split(',')))
+
     def stands_in(c):
-        return c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed')
+        return c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed') or c['Package'] in ours_for
 
     our_names = set()
     for _, c in ours:
@@ -422,13 +526,19 @@ def main():
     for c in by_name.values():
         for n in provided(c):
             prov.setdefault(n, c['Package'])
+    # for the closure, with the libraries ours load (not in their Depends)
+    by_needs = by_name
+    if a.ours_closure:
+        needs = needs_of_ours(image_ours, os.path.join(a.cache, 'ours-needed-2.json'))
+        by_needs = {n: dict(c, Depends=', '.join(filter(None, [c.get('Depends', '')] + needs.get(n, []))))
+                    for n, c in by_name.items()}
     our_roots = list(user_roots)
     candidates = image_ours
     while True:
         if a.ours_closure:
             # the roots and what they need, wherever ours have it, and those of
             # ours that Debian's packages in the image need
-            want = set(debfetch.closure(by_name, prov, our_roots, exclude=set()))
+            want = set(debfetch.closure(by_needs, prov, our_roots, exclude=set()))
             image_ours = [(d, c) for d, c in candidates if c['Package'] in want]
         # (a package of ours left out of the image does not satisfy anything)
         have_ours = set()

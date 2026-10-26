@@ -615,7 +615,9 @@ class Builder:
             # @CROSS@: this directory (in-chroot.sh binds it read-only);
             # @SYSROOT@: the target's
             env += ''.join(f' {e.replace("@CROSS@", HERE).replace("@SYSROOT@", sysroot)}' for e in c['env'])
-        cmake_vars = c['cmake'] if c else []
+        # ECM leaves KDevelop's app templates out of a cross build, and a
+        # KDE -dev package's .install lists them (Debian's own content)
+        cmake_vars = [('KDE_INSTALL_APP_TEMPLATES', 'ON')] + (c['cmake'] if c else [])
         if cmake_vars:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
