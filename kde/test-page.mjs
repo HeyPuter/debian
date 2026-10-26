@@ -10,6 +10,8 @@
 // processes). Ends KDE_AFTER seconds (default 120) after `ready`, or at
 // KDE_WALL seconds (default 1800). OUT/console.txt gets every console line,
 // OUT/session.txt the session's output.
+// At `ready`, console.txt also gets the `[gex-mark]` lines `start` and
+// `desktop` (ms of the epoch), which `gexc units profile` cuts a profile at.
 // Env: CHROME (default /usr/bin/chromium), KDE_QUERY (appended to the URL).
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -263,7 +265,14 @@ for (;;) {
   if (st?.out) writeFileSync(join(OUT, 'session.txt'), st.out);
   // the whole of it, once a minute (session.txt is its last 4000 characters)
   if (now - lastFull > 60000) { lastFull = now; const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null); if (all) writeFileSync(join(OUT, 'session-full.txt'), all); }
-  if (st?.phase === 'ready' && !readyAt) { readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`); await shot(); lastShot = now; }
+  if (st?.phase === 'ready' && !readyAt) {
+    readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`);
+    // the start-up marks an instrumented run's profile is cut at (`gexc
+    // units profile`): the navigation and the desktop, in ms of the epoch
+    const origin = await ev('performance.timeOrigin').catch(() => null);
+    if (origin) appendFileSync(join(OUT, 'console.txt'), `[gex-mark] start ${origin}\n[gex-mark] desktop ${origin + st.readyMs}\n`);
+    await shot(); lastShot = now;
+  }
   if (profAt.length && (now - t0) / 1000 >= profAt[0]) await profileAll(profAt.shift());
   while (readyAt && steps.length && Date.now() >= stepAt) await step(steps.shift());
   if (now - lastNote > 30000) {
