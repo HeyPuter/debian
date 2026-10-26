@@ -156,10 +156,10 @@ fi
 exec /usr/bin/meson "$@"
 SH
 chmod +x "$E/bin/meson"
-# chrpath: a gexcc container has no ELF dynamic section (its run path is
-# in the wasm module's dylink.0), so `chrpath -d` on one (sqlite3's tcl
-# module) has nothing to delete; any other file, and any other use, is the
-# real chrpath's
+# chrpath: a gexcc module has no ELF dynamic section (its run path is in
+# the wasm module's dylink.0), so `chrpath -d` on one (sqlite3's tcl
+# module, ngtcp2's examples) deletes that run path with gexcc-rpath; any
+# other file, and any other use, is the real chrpath's
 cat > "$E/bin/chrpath" <<'SH'
 #!/bin/sh
 # (in-chroot.sh binds this over /usr/bin/chrpath, and the real one here)
@@ -171,6 +171,7 @@ case " $* " in
         case $f in -*) continue ;; esac
         [ -f "$f" ] || continue
         if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
+            gexcc-rpath --set '' "$f" || exit
             continue
         fi
         "$real" -d "$f" || exit
@@ -181,7 +182,7 @@ exec "$real" "$@"
 SH
 chmod +x "$E/bin/chrpath"
 # patchelf --remove-rpath (libcap2's test programs), likewise: a gexcc
-# container has no dynamic section for patchelf to edit
+# module's run path is removed with gexcc-rpath
 cat > "$E/bin/patchelf" <<'SH'
 #!/bin/sh
 # (in-chroot.sh binds this over /usr/bin/patchelf, and the real one here)
@@ -193,6 +194,7 @@ case " $* " in
         case $f in -*) continue ;; esac
         [ -f "$f" ] || continue
         if head -c 1048576 "$f" | grep -aq 'dylink\.0' && ! readelf -d "$f" 2>/dev/null | grep -q 'Dynamic section'; then
+            gexcc-rpath --set '' "$f" || exit
             continue
         fi
         "$real" --remove-rpath "$f" || exit
