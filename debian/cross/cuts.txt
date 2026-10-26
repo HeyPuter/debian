@@ -203,6 +203,8 @@ kf6-kfilemetadata cut libavutil-dev       | as above | as above
 kf6-kfilemetadata cut libpostproc-dev     | as above | as above
 kf6-kfilemetadata cut libswscale-dev      | as above | as above
 plasma5support cut libkf6networkmanagerqt-dev | NetworkManager (libnm) pulls bluez, ModemManager, evolution-data-server | RUNTIME: Plasma's network data engine has no NetworkManager (the page has no NetworkManager either)
+plasma5support drop libplasma-geolocation-interface6 | the geolocation data engine is built only with NetworkManagerQt (cut above) | RUNTIME: no geolocation provider (the weather and night-light location come from settings)
+plasma5support drop libplasma-geolocation-interface-dev | as above | as above
 plasma-workspace cut libkf6networkmanagerqt-dev | as plasma5support | RUNTIME: as above (no network status in Plasma)
 plasma-workspace cut libpipewire-0.3-dev  | PipeWire pulls bluez, GStreamer, PulseAudio, libcamera | RUNTIME: no PipeWire: the camera indicator applet; no sound server at all in the session
 plasma-workspace cut libkpipewire-dev     | as above (kpipewire is PipeWire and ffmpeg) | PipeWire window thumbnails (Wayland only; X11 thumbnails are KWin's own)
@@ -356,5 +358,3 @@ qt6-tools  cmake CMAKE_DISABLE_FIND_PACKAGE_Qt6QmlLSPrivate=TRUE | qt6-declarati
 qt6-tools  exclude designer/libcontainerextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcontainerextension.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libcustomwidgetplugin | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcustomwidgetplugin.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libtaskmenuextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libtaskmenuextension.so (Designer itself and the qquickwidget plugin stay)
-kf6-kguiaddons  cmake PlasmaWaylandProtocols_DIR=@CROSS@/cmake/PlasmaWaylandProtocols | plasma-wayland-protocols is Multi-Arch: foreign (protocol XML for the build machine's wayland-scanner), so it is only in the chroot, in the build machine's multiarch directory, which a sysroot search does not reach, and its version file refuses a 32-bit target; cmake/PlasmaWaylandProtocols here is that package without the 32/64-bit check | nothing
-kf6-kwindowsystem  cmake PlasmaWaylandProtocols_DIR=@CROSS@/cmake/PlasmaWaylandProtocols | as kf6-kguiaddons | nothing

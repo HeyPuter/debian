@@ -45,7 +45,9 @@ GL=$SRC/guest/gl
 [ -f "$GL/gl-extensions-generated.inc" ] || printf '%s\n' 'static const char *const gexgl_claimable_extensions[] = {0};' > "$T/gl-extensions-generated.inc"
 [ -f "$GL/gl-aliases-generated.inc" ] || : > "$T/gl-aliases-generated.inc"
 for so in libGLESv2.so.2 libEGL.so.1 libGL.so.1 libOpenGL.so.0 libGLX.so.0 libGLESv1_CM.so.1; do
-    GEXCC_SHARED=1 "$P/bin/gexcc" -shared -fPIC -O2 -I"$T" -o "$L/$so" -Wl,-soname,$so "$GL/gexgl.c" -ldl
+    # (libGL and libGLX: with the GLX 1.4 entry points the driver lacks, glx-rest.c)
+    rest=; case $so in libGL.so.1|libGLX.so.0) rest="$HERE/glx-rest.c" ;; esac
+    GEXCC_SHARED=1 "$P/bin/gexcc" -shared -fPIC -O2 -I"$T" -I"$T/dev/usr/include" -o "$L/$so" -Wl,-soname,$so "$GL/gexgl.c" $rest -ldl
     ln -sf "$so" "$D/${so%.so.*}.so"
 done
 # GBM: every function of gbm.h, none with a device behind it

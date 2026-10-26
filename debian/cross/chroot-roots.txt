@@ -110,3 +110,6 @@ kpackagetool6
 # libkf6auth-dev's export names kauth-policy-gen (libkf6auth-dev-bin),
 # which kf6-kio's build runs
 libkf6auth-dev-bin
+# libkf6kcmutils-dev's tooling export names kcmdesktopfilegenerator
+# (libkf6kcmutils-bin), which libplasma's build runs
+libkf6kcmutils-bin

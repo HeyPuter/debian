@@ -185,15 +185,26 @@ done
 exec /usr/bin/dpkg-query "\$@"
 SH
 chmod +x "$E/bin/dpkg-query"
+# cmake: gexcc's toolchain file (the sysroot and the search modes, under
+# debhelper's own -D options) for a configure debhelper runs for the
+# target, which it marks with CMAKE_SYSTEM_PROCESSOR; not through the
+# environment, where a project's own build of a tool for the build machine
+# (kf6-syntax-highlighting's ExternalProject of katehighlightingindexer)
+# would take it too and cross-compile itself again, without end
+cat > "$E/bin/cmake" <<SH
+#!/bin/sh
+for a; do
+    case \$a in -DCMAKE_SYSTEM_PROCESSOR=wasm32) exec /usr/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$P/share/gexcc/toolchain.cmake "\$@" ;; esac
+done
+exec /usr/bin/cmake "\$@"
+SH
+chmod +x "$E/bin/cmake"
 cat > "$E/env.sh" <<ENV
 # . this file: Debian's build tools, cross for musl-linux-wasm32 through gexcc
 export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH
 export PERL5LIB=$E/host/usr/share/perl5\${PERL5LIB:+:\$PERL5LIB}
 export DPKG_DATADIR=$E/dpkg
 export GEXCC_PREFIX=$P
-# CMake (>= 3.21) reads the toolchain file from the environment: the sysroot
-# and the search modes, under debhelper's own -D options
-export CMAKE_TOOLCHAIN_FILE=$P/share/gexcc/toolchain.cmake
 export CONFIG_SITE=$P/share/gexcc/config.site
 ENV
 echo "$E/env.sh"

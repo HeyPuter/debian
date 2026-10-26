@@ -207,6 +207,26 @@ def into_sysroot(deb, sysroot, done, chroot=None, share_only=False):
                 os.makedirs(os.path.join(sysroot, sub), exist_ok=True)
                 subprocess.run(['cp', '-a', '--remove-destination', s + '/.', os.path.join(sysroot, sub)],
                                check=True)
+        # A link from the target's files to a build machine's path (the
+        # -dev package's usr/lib/TRIPLET/libexec/kf6/kcmdesktopfilegenerator
+        # -> ../../../../libexec/kf6/...: its -bin package, Multi-Arch:
+        # foreign): absolute, so it reaches the chroot's, as in a Debian
+        # cross build, where both are in one /usr
+        for dirpath, dirs, files in os.walk(os.path.join(t, 'usr/lib')):
+            for n in files + dirs:
+                f = os.path.join(dirpath, n)
+                if not os.path.islink(f):
+                    continue
+                to = os.readlink(f)
+                if to.startswith('/'):
+                    continue
+                rel = os.path.normpath(os.path.join(os.path.relpath(dirpath, t), to))
+                if rel.startswith('..') or rel.split('/')[:2] in (['usr', 'lib'], ['usr', 'include'], ['usr', 'share']):
+                    continue
+                dst = os.path.join(sysroot, os.path.relpath(f, t))
+                if os.path.lexists(dst):
+                    os.remove(dst)
+                os.symlink('/' + rel, dst)
         # A CMake package file that names the headers by an absolute
         # /usr/include (double-conversion's, written by Debian's packaging
         # rather than CMake's export): the sysroot's, as pkg-config's
@@ -616,8 +636,15 @@ class Builder:
             # @SYSROOT@: the target's
             env += ''.join(f' {e.replace("@CROSS@", HERE).replace("@SYSROOT@", sysroot)}' for e in c['env'])
         # ECM leaves KDevelop's app templates out of a cross build, and a
-        # KDE -dev package's .install lists them (Debian's own content)
-        cmake_vars = [('KDE_INSTALL_APP_TEMPLATES', 'ON')] + (c['cmake'] if c else [])
+        # KDE -dev package's .install lists them (Debian's own content).
+        # plasma-wayland-protocols is Multi-Arch: foreign (protocol XML for
+        # the build machine's wayland-scanner), so only the chroot has it,
+        # in the build machine's multiarch directory, which a sysroot
+        # search does not reach, and its version file refuses a 32-bit
+        # target: cmake/PlasmaWaylandProtocols here is that package without
+        # the 32/64-bit check
+        cmake_vars = [('KDE_INSTALL_APP_TEMPLATES', 'ON'),
+                      ('PlasmaWaylandProtocols_DIR', '@CROSS@/cmake/PlasmaWaylandProtocols')] + (c['cmake'] if c else [])
         if cmake_vars:
             init = os.path.join(self.work, 'cmake-init', f'{name}.cmake')
             os.makedirs(os.path.dirname(init), exist_ok=True)
