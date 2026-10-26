@@ -458,8 +458,6 @@ class Builder:
         """What the target side of DEPS needs in the sysroot: (debs to unpack,
         binaries not built yet, build-machine tools the chroot lacks)."""
         debs, needs, lacks, seen = [], [], [], set()
-        # what a target package depends on (not the source's build-deps)
-        wanted = set()
         todo = list(deps)
         while todo:
             dep, q = todo.pop()
@@ -490,7 +488,6 @@ class Builder:
                 src = (f.get('Source') or f.get('Package', '')).split(' ')[0]
                 c = CUTS.get(src, {})
                 cut = c.get('cut', set()) | c.get('drop', set())
-                wanted.update(n for n in clause_names(f.get('Depends', '')) if n not in cut)
                 todo += [(n, None) for n in clause_names(f.get('Depends', '')) if n not in cut]
                 # and its source's shared libraries: a -dev package's CMake
                 # export names every library of the source, and the
@@ -520,12 +517,14 @@ class Builder:
                 if p is not None and p.get('Architecture') == 'all' and q != 'native':
                     debs.append(debfetch.fetch(self.cache, p))
                     todo += [(n, None) for n in clause_names(p.get('Depends'))]
-                elif p is not None and p.get('Multi-Arch') == 'foreign' and dep in wanted and dep in self.chroot_has:
-                    # a target package's tool (libkf6doctools-dev on
-                    # kdoctools6): its data is in the one /usr/share of a
+                elif p is not None and p.get('Multi-Arch') == 'foreign' and q in (None, '') and dep in self.chroot_has:
+                    # a tool the build or a target package depends on
+                    # (libkf6doctools-dev on kdoctools6, packagekit-qt on
+                    # packagekit): its data is in the one /usr/share of a
                     # Debian cross build, where the target's CMake package
-                    # looks (KDOCTOOLS_CUSTOMIZATION_DIR); in the sysroot
-                    # too, its programs not
+                    # (KDOCTOOLS_CUSTOMIZATION_DIR) or a find_path rerooted
+                    # in the sysroot (PackageKit's D-Bus XML) looks; in the
+                    # sysroot too, its programs not
                     debs.append((debfetch.fetch(self.cache, p), 'share'))
                 continue
             needs.append(dep)

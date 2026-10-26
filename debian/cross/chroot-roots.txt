@@ -116,3 +116,13 @@ libkf6kcmutils-bin
 # packagekit-qt's build reads PackageKit's D-Bus interface XML (packagekit,
 # Multi-Arch: foreign)
 packagekit
+# libei's build runs black (its generated code's formatting check) and
+# python3-dbusmock (its tests' import check at configure)
+black
+python3-dbusmock
+# kwin's build checks for Xwayland's binary (xwayland, Multi-Arch: foreign)
+xwayland
+# plasma-workspace's Build-Depends names appmenu-gtk3-module (the GTK menu
+# exporter, Multi-Arch: same, arch-independent at build: nothing compiles
+# against it)
+appmenu-gtk3-module
