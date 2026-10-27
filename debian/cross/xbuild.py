@@ -21,7 +21,7 @@ For each source package, in order:
 A dependency that cannot be met stops that package with the list of what is
 missing (`needs`), so the caller can build those first.
 """
-import argparse, glob, os, re, shutil, subprocess, sys, tempfile
+import argparse, glob, os, re, shutil, subprocess, sys, tempfile, threading
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
 import debfetch  # noqa: E402
@@ -429,6 +429,9 @@ class Builder:
         self.unpacked = set()
         self.ours = built_debs(self.work)
         self.toolchain = toolchain(a.prefix)
+        # --parallel: one source's planning, unpacking and collecting at a
+        # time, the builds themselves side by side
+        self.lock = threading.Lock()
 
     def binnmu_of(self, name, ver):
         """Debian's arm64 binNMU of SOURCE VER (its `+bN`), or None: our
@@ -756,10 +759,14 @@ class Builder:
         work = os.path.realpath(self.work)
         at = '/build' + os.path.realpath(srcdir)[len(work):]
         cmd = f'cd {at} && {env} FAKEROOTDONTTRYCHOWN=1 dpkg-buildpackage -a {ARCH} -d -B -uc -us -rfakeroot'
-        with open(log, 'w') as f:
-            r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
-                                '--bind', self.work, '--bind-at', self.work, '/build', '--', 'bash', '-c', cmd],
-                               stdout=f, stderr=subprocess.STDOUT)
+        self.lock.release()
+        try:
+            with open(log, 'w') as f:
+                r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
+                                    '--bind', self.work, '--bind-at', self.work, '/build', '--', 'bash', '-c', cmd],
+                                   stdout=f, stderr=subprocess.STDOUT)
+        finally:
+            self.lock.acquire()
         if r.returncode:
             tail = open(log, errors='replace').read().strip().split('\n')[-3:]
             return f'build (log {log}): ' + ' | '.join(tail)
@@ -767,7 +774,11 @@ class Builder:
         made = []
         # the .changes names every .deb the build made, a binary package
         # with a version of its own too (e2fsprogs' comerr-dev 2.1-1.47.2-3)
-        debs = set(glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}{f"+b{binnmu}" if binnmu else ""}_*.deb')))
+        # (only this source's binaries: another source of the same version
+        # may be building beside it, in the same directory)
+        mine = set(re.findall(r'(?m)^Package: *(\S+)', open(os.path.join(srcdir, 'debian', 'control')).read()))
+        debs = {d for d in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}{f"+b{binnmu}" if binnmu else ""}_*.deb'))
+                if os.path.basename(d).split('_')[0] in mine}
         for ch in glob.glob(os.path.join(parent, f'{name}_*.changes')):
             debs |= {os.path.join(parent, m) for m in re.findall(r'(?m)^ [0-9a-f]{64} \d+ (\S+\.deb)$', open(ch).read())
                      if os.path.exists(os.path.join(parent, m))}
@@ -804,6 +815,8 @@ def main():
     ap.add_argument('--auto', action='store_true',
                     help='build what each package needs first, in dependency order')
     ap.add_argument('--plan', action='store_true', help='with --auto: print the order, build nothing')
+    ap.add_argument('--parallel', type=int, default=1,
+                    help='sources built at once (each with --jobs), a source after those it needs')
     ap.add_argument('pkgs', nargs='+')
     a = ap.parse_args()
     b = Builder(a)
@@ -826,6 +839,7 @@ def main():
             built.add(src)
     state = {}   # source -> 'ok' | reason | 'visiting'
     order = []
+    after = {}   # source -> the sources of this run it needs built first
 
     def visit(src, chain):
         if src in built and src not in a.pkgs:
@@ -847,6 +861,7 @@ def main():
             s = b.source_of(bin_)
             if s and s != src:
                 visit(s, chain + [src])
+                after.setdefault(src, set()).add(s)
         state[src] = 'planned'
         order.append(src)
         print(f'  {len(order)}: {src} (needs {len(needs)}) via {" <- ".join(reversed(chain[-6:]))}', file=sys.stderr, flush=True)
@@ -859,15 +874,40 @@ def main():
         print('order: ' + ' '.join(order), flush=True)
         if a.plan:
             return
-    failed = 0
-    for src in order:
-        try:
-            r = b.build(src)
-        except RuntimeError as e:
-            r = str(e)
+    failed = []
+    done = set()
+    wake = threading.Condition()
+
+    def one(src):
+        with b.lock:
+            try:
+                r = b.build(src)
+            except RuntimeError as e:
+                r = str(e)
+            except Exception as e:   # (in a thread: the run would wait for it forever)
+                r = f'{type(e).__name__}: {e}'
         if r != 'ok':
             print(f'FAIL {src}: {r}', flush=True)
-            failed += 1
+            failed.append(src)
+        with wake:
+            done.add(src)
+            wake.notify_all()
+
+    # in ORDER's order, each once the sources it needs (of this run) are done
+    waiting = list(order)
+    running = set()
+    with wake:
+        while waiting or running:
+            ready = [s for s in waiting if not (after.get(s, set()) & set(order)) - done]
+            if waiting and not ready and not running:
+                ready = waiting[:1]   # (a cycle: in ORDER's order, as before)
+            while ready and len(running) < max(1, a.parallel):
+                src = ready.pop(0)
+                waiting.remove(src)
+                running.add(src)
+                threading.Thread(target=one, args=(src,), daemon=True).start()
+            wake.wait()
+            running -= done
     sys.exit(1 if failed else 0)
 
 
