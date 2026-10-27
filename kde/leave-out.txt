@@ -10,3 +10,5 @@ udisks2        | a page has no block devices to manage | VISIBLE: Dolphin's Devi
 libudisks2-0   | as above | as above
 # the browser runs the page's own Xwayland, never the tree's
 xwayland       | only kwin-wayland pulls it (the X11 session runs the page's X server) | the Plasma Wayland session's X11 support (that session is not run)
+# glibc's tools: our programs are on musl, whose loader keeps no cache
+libc-bin       | Debian's is glibc's arm64 ldconfig, getent, locale and iconv, and pulls glibc itself (libc6, libgcc-s1); musl's loader reads no ld.so.cache | the getent, locale, iconv and getconf commands; a library apt installs later runs no ldconfig (nothing needs one)
