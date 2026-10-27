@@ -50,6 +50,13 @@ ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
 XDG_DATA_DIRS="$O/tree/usr/share" update-mime-database "$O/tree/usr/share/mime"
 [ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
+# Each icon theme's cache (icon-theme.cache, which Debian's trigger makes on
+# install; the format is the same everywhere): without one, every icon an
+# application asks for is looked for in each of the theme's size directories,
+# a few thousand access calls per program start
+for d in "$O/tree/usr/share/icons"/*/; do
+    [ -f "$d/index.theme" ] && gtk-update-icon-cache -f -q "$d"
+done
 "$HERE/sycoca.sh" "$O/tree"
 tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name -cf "$O/kde.tar" .
 echo "$O/kde.tar: $(du -h "$O/kde.tar" | cut -f1)"
