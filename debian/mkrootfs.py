@@ -157,6 +157,22 @@ def md5(path):
     return hashlib.md5(open(path, 'rb').read()).hexdigest()
 
 
+def without(ctl, gone):
+    """ctl with the Depends, Pre-Depends and Recommends clauses that only
+    `gone` packages meet left out."""
+    out = dict(ctl)
+    for k in ('Depends', 'Pre-Depends', 'Recommends'):
+        if k not in ctl:
+            continue
+        keep = [c.strip() for c in ctl[k].split(',')
+                if not all(x.strip().split(' ')[0].split(':')[0] in gone for x in c.split('|'))]
+        if keep:
+            out[k] = ', '.join(keep)
+        else:
+            del out[k]
+    return out
+
+
 def status_stanza(ctl, conffiles_md5):
     keys = list(ctl)
     out = [f'Package: {ctl["Package"]}', 'Status: install ok installed']
@@ -474,6 +490,9 @@ def main():
     ap.add_argument('--roots', default=','.join(ROOTS))
     ap.add_argument('--extra', default='', help='more arm64 packages (and their closure)')
     ap.add_argument('--exclude', default='', help='our packages to leave out of the image (still in the repo)')
+    ap.add_argument('--leave-out', default='',
+                    help='packages in neither form in the image, what needs them met as if they were '
+                         '(dropped from the dependents\' Depends in the status file)')
     ap.add_argument('--ours', default='', help='only these of our packages in the image (still all in the repo)')
     ap.add_argument('--ours-closure', action='store_true',
                     help='only the closure of the roots among our packages in the image (still all in the repo)')
@@ -507,6 +526,7 @@ def main():
         return [item.strip().split(' ')[0] for item in c.get('Provides', '').split(',') if item.strip()]
 
     ours_for = set(filter(None, a.ours_for.split(',')))
+    leave_out = set(filter(None, a.leave_out.split(',')))
 
     def stands_in(c):
         return (c.get('Architecture') == NATIVE or c.get('Multi-Arch') in ('foreign', 'allowed')
@@ -550,8 +570,8 @@ def main():
         if a.ours_closure:
             # the roots and what they need, wherever ours have it, and those of
             # ours that Debian's packages in the image need
-            want = set(debfetch.closure(by_needs, prov, our_roots, exclude=set()))
-            image_ours = [(d, c) for d, c in candidates if c['Package'] in want]
+            want = set(debfetch.closure(by_needs, prov, our_roots, exclude=leave_out))
+            image_ours = [(d, c) for d, c in candidates if c['Package'] in want and c['Package'] not in leave_out]
         # (a package of ours left out of the image does not satisfy anything)
         have_ours = set()
         for _, c in image_ours:
@@ -563,19 +583,19 @@ def main():
         gaps = []
         for _, c in image_ours:
             for alts in debfetch.clauses(c):
-                if any(x in have_ours for x in alts):
+                if any(x in have_ours or x in leave_out for x in alts):
                     continue
                 pick = next((x for x in alts if shared_for_ours(x)), None)
                 if pick:
                     roots.append(pick)
                 else:
                     gaps.append(f'{c["Package"]} needs {" | ".join(alts)}')
-        order = debfetch.closure(pkgs, provides, roots, exclude=our_names - our_libs, shared=our_libs, arch=NATIVE)
+        order = debfetch.closure(pkgs, provides, roots, exclude=(our_names - our_libs) | leave_out, shared=our_libs, arch=NATIVE)
         # A name ours stand in for is never Debian's in the image (but for a
         # library of ours a Debian binary needs Debian's copy of).
         order = [n for n in order if n not in our_names or n in our_libs]
         unmet, pull = [], []
-        have = set(order) | (have_ours & our_names)
+        have = set(order) | (have_ours & our_names) | leave_out
         for n in order:
             have.update(provided(pkgs[n]))
         for p in [pkgs[n] for n in order]:
@@ -639,7 +659,7 @@ def main():
                 f = os.path.join(root, real_rel(root, p.lstrip('/')))
                 if os.path.isfile(f):
                     cmd5.append((p, md5(f)))
-        status.append(status_stanza(ctl, cmd5))
+        status.append(status_stanza(without(ctl, leave_out), cmd5))
     open(os.path.join(root, 'var/lib/dpkg/status'), 'w').write('\n'.join(status))
     link_alternatives(root, alts)
     configure(root, ours, native, pkgs)

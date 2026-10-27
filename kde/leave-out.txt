@@ -1,0 +1,12 @@
+# Packages the wasm32 KDE image leaves out in both forms, ours and Debian's
+# (mkrootfs.py --leave-out): what depends on them is installed without them,
+# the clause dropped from its Depends in the image's status file.
+#   PACKAGE | why | what is lost
+#
+# udisks2 and what only it pulls: libblockdev's plugins, cryptsetup,
+# parted, libnvme, lvm2's libdevmapper and dmsetup, volume_key with NSS
+# and the GnuPG programs under gpgme
+udisks2        | a page has no block devices to manage | VISIBLE: Dolphin's Devices panel and Plasma's disk and device notifier list no drives
+libudisks2-0   | as above | as above
+# the browser runs the page's own Xwayland, never the tree's
+xwayland       | only kwin-wayland pulls it (the X11 session runs the page's X server) | the Plasma Wayland session's X11 support (that session is not run)
