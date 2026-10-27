@@ -710,10 +710,16 @@ class Builder:
         # in the chroot's user namespace has no other group to give a file,
         # so fakeroot only records the owner (EINVAL from the real chown is
         # not the EPERM it would forgive)
-        cmd = f'cd {srcdir} && {env} FAKEROOTDONTTRYCHOWN=1 dpkg-buildpackage -a {ARCH} -d -B -uc -us -rfakeroot'
+        # built in /build (the work directory there as well), as a buildd
+        # builds: the build directory is compiled in (-ffile-prefix-map,
+        # a bashbug's CFLAGS), and no path of this machine's should be
+        work = os.path.realpath(self.work)
+        at = '/build' + os.path.realpath(srcdir)[len(work):]
+        cmd = f'cd {at} && {env} FAKEROOTDONTTRYCHOWN=1 dpkg-buildpackage -a {ARCH} -d -B -uc -us -rfakeroot'
         with open(log, 'w') as f:
             r = subprocess.run([os.path.join(HERE, 'in-chroot.sh'), self.a.chroot, self.a.prefix, self.a.env,
-                                '--bind', self.work, '--', 'bash', '-c', cmd], stdout=f, stderr=subprocess.STDOUT)
+                                '--bind', self.work, '--bind-at', self.work, '/build', '--', 'bash', '-c', cmd],
+                               stdout=f, stderr=subprocess.STDOUT)
         if r.returncode:
             tail = open(log, errors='replace').read().strip().split('\n')[-3:]
             return f'build (log {log}): ' + ' | '.join(tail)

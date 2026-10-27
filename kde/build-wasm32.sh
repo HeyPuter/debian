@@ -37,7 +37,7 @@ done
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 # what the image leaves out in both forms (leave-out.txt)
 leave=$(grep -v '^#' "$HERE/leave-out.txt" | cut -d'|' -f1 | awk 'NF {print $1}' | paste -sd,)
-python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure --leave-out "$leave" ${OURS_FOR:+--ours-for "$OURS_FOR"}
+python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure --native-ours --leave-out "$leave" ${OURS_FOR:+--ours-for "$OURS_FOR"}
 # gexcc's libc.so, which its shared programs and libraries (GEXCC_SHARED,
 # as xbuild.py builds them) load: no Debian package has it
 if [ -n "${GEXCC_PREFIX:-}" ]; then
@@ -58,5 +58,18 @@ for d in "$O/tree/usr/share/icons"/*/; do
     [ -f "$d/index.theme" ] && gtk-update-icon-cache -f -q "$d"
 done
 "$HERE/sycoca.sh" "$O/tree"
+# No path of the build machine's in what ships: a build that records one
+# (apt read its cpu table from the cross environment's path) breaks at run
+# time, and none of this machine's names belong in the image. Debian's own
+# files name other people's homes (an example config, an icon's metadata),
+# so it is this machine's home that is looked for. GEX_LEAK_CHECK=warn says
+# them and goes on (until every package is built again with a toolchain
+# that records none: its run-time launcher path, libc++abi's source names)
+leak=$(LC_ALL=C grep -rlaF -- "$HOME/" "$O/tree" 2>/dev/null | sed "s|^$O/tree||")
+if [ -n "$leak" ]; then
+    echo "build-wasm32.sh: $(printf '%s\n' "$leak" | wc -l) files name $HOME (a build recorded one of its paths), as:" >&2
+    printf '%s\n' "$leak" | head -20 >&2
+    [ "${GEX_LEAK_CHECK:-fail}" = warn ] || exit 1
+fi
 tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name -cf "$O/kde.tar" .
 echo "$O/kde.tar: $(du -h "$O/kde.tar" | cut -f1)"

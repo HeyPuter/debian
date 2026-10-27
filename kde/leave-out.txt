@@ -12,3 +12,16 @@ libudisks2-0   | as above | as above
 xwayland       | only kwin-wayland pulls it (the X11 session runs the page's X server) | the Plasma Wayland session's X11 support (that session is not run)
 # glibc's tools: our programs are on musl, whose loader keeps no cache
 libc-bin       | Debian's is glibc's arm64 ldconfig, getent, locale and iconv, and pulls glibc itself (libc6, libgcc-s1); musl's loader reads no ld.so.cache | the getent, locale, iconv and getconf commands; a library apt installs later runs no ldconfig (nothing needs one)
+# not built for wasm32 yet: what names them is installed, so apt sees an
+# image whose every Depends is met (it refuses any install otherwise)
+python3.13           | not built for wasm32 yet | python3 (the python3 packages are only what the image's tools name)
+python3.13-minimal   | as above | as above
+libpython3.13-stdlib | as above | as above
+cpp                  | not built for wasm32 yet (gcc's preprocessor) | xrdb's #include and #define in X resources
+gdb                  | not built for wasm32 yet; only drkonqi uses it | backtraces in crash reports
+drkonqi              | Plasma's crash reporter: a page has nowhere to send a report | the crash dialog after a program dies
+libpipewire-0.3-0t64 | no PipeWire daemon in a page (no audio or screen capture service) | Qt Multimedia's PipeWire backend
+qml6-module-org-kde-pipewire | as above | screencast thumbnails in the task manager
+# two packages of one role, both pulled by the closure: one is left out
+sudo-ldap            | sudo is in the image; the two conflict | sudo with an LDAP sudoers source
+systemd-standalone-sysusers | systemd in the image provides systemd-sysusers, which this conflicts with | nothing (the same program)

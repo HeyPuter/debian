@@ -28,6 +28,7 @@ sys.path.insert(0, HERE)
 import debfetch  # noqa: E402
 
 a_minimal = True
+a_native_ours = False
 
 OURS_ARCH = 'musl-linux-wasm32'
 NATIVE = 'arm64'
@@ -312,6 +313,12 @@ def configure(root, ours, native_pkgs, debian=None):
     if not os.path.exists(os.path.join(root, 'etc/nsswitch.conf')):
         w('etc/nsswitch.conf', 'passwd: files\ngroup: files\nshadow: files\nhosts: files dns\n'
           'networks: files\nprotocols: files\nservices: files\nethers: files\nrpc: files\n')
+    # apt and dpkg's own architecture first: Debian's (ours labelled
+    # arm64 where they stand in), or ours (--native-ours: dpkg itself is
+    # musl-linux-wasm32's, and an Architecture: all package is ours' then;
+    # Debian's arm64 is the foreign one, which apt still installs a name
+    # from when ours has none)
+    first, second = (OURS_ARCH, NATIVE) if a_native_ours else (NATIVE, OURS_ARCH)
     # apt: Debian for arm64, ours for musl-linux-wasm32, the pins
     w('etc/apt/sources.list.d/debian.sources',
       f'Types: deb\nURIs: {MIRROR_URI}\nSuites: {SUITE} {SUITE}-updates\nComponents: main\n'
@@ -360,8 +367,8 @@ def configure(root, ours, native_pkgs, debian=None):
       'APT::Install-Recommends "false";\n'
       '// said here so apt does not fork dpkg to ask (two dpkg runs, 3 s of\n'
       '// every apt-cache in the page)\n'
-      f'APT::Architecture "{NATIVE}";\n'
-      f'APT::Architectures {{ "{NATIVE}"; "{OURS_ARCH}"; }};\n'
+      f'APT::Architecture "{first}";\n'
+      f'APT::Architectures {{ "{first}"; "{second}"; }};\n'
       '// debconf\'s dpkg-preconfigure (perl, about 19 s per apt install in the\n'
       '// page) only asks questions early; postinst asks them anyway, and the\n'
       '// demo is noninteractive\n'
@@ -374,7 +381,7 @@ def configure(root, ours, native_pkgs, debian=None):
     if a_minimal:
         w('etc/dpkg/dpkg.cfg.d/excludes', '# no documentation or translations (mkrootfs.py)\n'
           + ''.join(f'path-exclude={g}\n' for g in EXCLUDE) + ''.join(f'path-include={g}\n' for g in INCLUDE))
-    w('var/lib/dpkg/arch', f'{NATIVE}\n{OURS_ARCH}\n')
+    w('var/lib/dpkg/arch', f'{first}\n{second}\n')
     for f in ('diversions', 'statoverride', 'available'):
         w(f'var/lib/dpkg/{f}', '')
     w('var/lib/dpkg/triggers/File', '')
@@ -502,11 +509,14 @@ def main():
     ap.add_argument('--list-native', action='store_true',
                     help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--native-ours', action='store_true',
+                    help="dpkg's and apt's own architecture is ours (musl-linux-wasm32), Debian's the foreign one")
     ap.add_argument('--arch', default='arm64',
                     help="Debian's architecture for the tree (amd64: the cross build's chroot)")
     a = ap.parse_args()
-    global a_minimal, NATIVE
+    global a_minimal, a_native_ours, NATIVE
     a_minimal = not a.full
+    a_native_ours = a.native_ours
     NATIVE = a.arch
 
     ours = []

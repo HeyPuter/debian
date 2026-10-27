@@ -10,11 +10,12 @@
 #           independent perl), unpacked: the build host's are older
 #   dpkg/   dpkg's architecture tables with wasm32 in the CPU table, so
 #           dpkg-architecture knows musl-linux-wasm32 (GNU type
-#           wasm32-linux-musl); DPKG_DATADIR points here
+#           wasm32-linux-musl); in-chroot.sh binds them at dpkg's own
+#           path, /usr/share/dpkg, so no build records this directory
 #   bin/    gexcc's tools under the GNU type's names (wasm32-linux-musl-gcc,
 #           -g++, -pkg-config, -ar...), which is what debhelper runs in a cross
 #           build
-#   env.sh  PATH, PERL5LIB, DPKG_DATADIR, and the cross defaults below
+#   env.sh  PATH, PERL5LIB, and the cross defaults below
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 P=$(realpath "${1:?GEXCC_PREFIX}"); E=$(realpath -m "${2:?ENVDIR}")
@@ -258,7 +259,6 @@ cat > "$E/env.sh" <<ENV
 # . this file: Debian's build tools, cross for musl-linux-wasm32 through gexcc
 export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH
 export PERL5LIB=$E/host/usr/share/perl5\${PERL5LIB:+:\$PERL5LIB}
-export DPKG_DATADIR=$E/dpkg
 export GEXCC_PREFIX=$P
 export CONFIG_SITE=$P/share/gexcc/config.site
 ENV

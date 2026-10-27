@@ -5,9 +5,11 @@
 # (mkenv.sh) and the gexc that runs wasm32 programs are bound in at their own
 # paths, so env.sh and the toolchain's baked paths hold inside too.
 #
-#   debian/cross/in-chroot.sh CHROOT GEXCC_PREFIX ENVDIR [--bind DIR]... -- CMD...
+#   debian/cross/in-chroot.sh CHROOT GEXCC_PREFIX ENVDIR [--bind DIR]... [--bind-at DIR AT]... -- CMD...
 #
 # CMD runs with ENVDIR/env.sh sourced, in the first --bind DIR (or /).
+# --bind-at DIR AT binds DIR at AT as well (a build directory at /build, as
+# Debian's buildds have it, so no path of this machine's is compiled in).
 # Environment: GEXC (the gexc wasm32 programs run under; default the
 # prefix's runner), LLVM (default /usr/lib/llvm-22).
 set -eu
@@ -19,11 +21,12 @@ binds=() cwd=/
 while [ $# -gt 0 ] && [ "$1" != -- ]; do
     case $1 in
         --bind) d=$(realpath "$2"); binds+=(--bind "$d" "$d"); [ "$cwd" = / ] && cwd=$d; shift 2 ;;
+        --bind-at) d=$(realpath "$2"); binds+=(--bind "$d" "$3"); shift 3 ;;
         *) echo "in-chroot.sh: unknown option $1" >&2; exit 2 ;;
     esac
 done
 [ "${1:-}" = -- ] && shift
-[ $# -gt 0 ] || { echo "usage: in-chroot.sh CHROOT GEXCC_PREFIX ENVDIR [--bind DIR]... -- CMD..." >&2; exit 2; }
+[ $# -gt 0 ] || { echo "usage: in-chroot.sh CHROOT GEXCC_PREFIX ENVDIR [--bind DIR]... [--bind-at DIR AT]... -- CMD..." >&2; exit 2; }
 LLVM=${LLVM:-/usr/lib/llvm-22}
 tools=()
 # clang, clang++, wasm-ld and the binutils gexcc names, as the host has them
@@ -53,10 +56,11 @@ for g in $(printf '%s\n' "${extra[@]}" | grep '^/' | sort -u); do
     done
 done
 # the environment's architecture tables (wasm32 in the CPU table) at dpkg's
-# own path as well: python-debian reads /usr/share/dpkg whatever DPKG_DATADIR
-# says, and debputy, matching each package's Architecture against an
-# architecture it does not know, built none of the linux-any ones
-# (util-linux's libmount-dev)
+# own path, where dpkg, python-debian and debputy all read them (debputy,
+# matching each package's Architecture against an architecture it did not
+# know, built none of the linux-any ones: util-linux's libmount-dev). Not
+# through DPKG_DATADIR: a build records that path (apt's cpu table path,
+# the -specs of every bashbug's CFLAGS)
 for t in cputable ostable abitable tupletable; do
     [ -e "$E/dpkg/$t" ] && extra+=(--ro-bind "$E/dpkg/$t" "/usr/share/dpkg/$t")
 done
