@@ -424,10 +424,48 @@ class Builder:
             os.makedirs(os.path.join(self.work, d), exist_ok=True)
         self.sysroot = os.path.join(a.prefix, 'sysroot')
         self.debian, _ = debfetch.packages(self.cache, 'trixie', 'amd64')
+        self.arm64 = None
         self.chroot_has = installed(a.chroot)
         self.unpacked = set()
         self.ours = built_debs(self.work)
         self.toolchain = toolchain(a.prefix)
+
+    def binnmu_of(self, name, ver):
+        """Debian's arm64 binNMU of SOURCE VER (its `+bN`), or None: our
+        Multi-Arch: same libraries are installed beside Debian's arm64 builds
+        of them (for arm64 programs), and the two must have one version."""
+        if self.arm64 is None:
+            self.arm64, _ = debfetch.packages(self.cache, suite_of(name), 'arm64')
+        best = 0
+        for p in self.arm64.values():
+            src = p.get('Source', '')
+            m = re.fullmatch(r'(\S+) \((\S+)\)', src)
+            if not m or m.group(1) != name or m.group(2) != ver:
+                continue
+            b = re.fullmatch(re.escape(ver) + r'\+b(\d+)', p['Version'])
+            if b:
+                best = max(best, int(b.group(1)))
+        return best or None
+
+    def mark_binnmu(self, srcdir, name, ver):
+        """debian/changelog with the binNMU entry Debian's arm64 build has
+        (none if it has none), from the source's own changelog each time"""
+        ch = os.path.join(srcdir, 'debian', 'changelog')
+        orig = ch + '.source'
+        if not os.path.exists(orig):
+            shutil.copy(ch, orig)
+        text = open(orig).read()
+        n = self.binnmu_of(name, ver)
+        if n:
+            dist = re.match(r'\S+ \(\S+\) (\S+);', text).group(1)
+            # (the source entry's date: it is the build's SOURCE_DATE_EPOCH)
+            date = re.search(r'(?m)^ -- .*?>  (.+)$', text).group(1)
+            text = (f'{name} ({ver}+b{n}) {dist}; urgency=low, binary-only=yes\n\n'
+                    f'  * Binary-only non-maintainer upload for {ARCH}; no source changes.\n'
+                    f'  * The version of Debian\'s arm64 binNMU.\n\n'
+                    f' -- gex <gex@localhost>  {date}\n\n') + text
+        open(ch, 'w').write(text)
+        return n
 
     def source_of(self, binary):
         p = self.debian.get(binary)
@@ -638,6 +676,7 @@ class Builder:
                 into_sysroot(deb[0], self.sysroot, self.unpacked, share_only=True)
             else:
                 into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
+        binnmu = self.mark_binnmu(srcdir, name, ver)
         log = os.path.join(self.work, 'logs', f'{name}.log')
         profiles = profiles_of(name)
         # the nodoc option goes with the profile: a source built without the
@@ -728,11 +767,16 @@ class Builder:
         made = []
         # the .changes names every .deb the build made, a binary package
         # with a version of its own too (e2fsprogs' comerr-dev 2.1-1.47.2-3)
-        debs = set(glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}_*.deb')))
+        debs = set(glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}{f"+b{binnmu}" if binnmu else ""}_*.deb')))
         for ch in glob.glob(os.path.join(parent, f'{name}_*.changes')):
             debs |= {os.path.join(parent, m) for m in re.findall(r'(?m)^ [0-9a-f]{64} \d+ (\S+\.deb)$', open(ch).read())
                      if os.path.exists(os.path.join(parent, m))}
         for f in sorted(debs):
+            # (a package's earlier build, of another version, goes)
+            pkg, _, arch = os.path.basename(f)[:-len('.deb')].split('_')
+            for old in glob.glob(os.path.join(self.work, 'debs', f'{glob.escape(pkg)}_*_{arch}.deb')):
+                if os.path.basename(old) != os.path.basename(f):
+                    os.unlink(old)
             shutil.move(f, os.path.join(self.work, 'debs', os.path.basename(f)))
             made.append(os.path.basename(f))
         for f in glob.glob(os.path.join(parent, f'{name}_*.buildinfo')) + glob.glob(os.path.join(parent, f'{name}_*.changes')):

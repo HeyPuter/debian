@@ -174,9 +174,9 @@ def without(ctl, gone):
     return out
 
 
-def status_stanza(ctl, conffiles_md5):
+def status_stanza(ctl, conffiles_md5, hold=False):
     keys = list(ctl)
-    out = [f'Package: {ctl["Package"]}', 'Status: install ok installed']
+    out = [f'Package: {ctl["Package"]}', f'Status: {"hold" if hold else "install"} ok installed']
     for k in keys:
         if k in ('Package', 'Filename', 'Size', 'MD5sum', 'SHA256', 'SHA1', 'Description-md5'):
             continue
@@ -211,7 +211,10 @@ def write_repo(root, debs):
             name = ctl['Package']
             fn = f'pool/main/{name[0]}/{name}/{os.path.basename(deb)}'
             data = open(deb, 'rb').read()
-            st = [f'{k}: {v}' for k, v in ctl.items()]
+            if ctl.get('_copy'):
+                os.makedirs(os.path.dirname(os.path.join(repo, fn)), exist_ok=True)
+                shutil.copy(deb, os.path.join(repo, fn))
+            st = [f'{k}: {v}' for k, v in ctl.items() if not k.startswith('_')]
             st += [f'Filename: {fn}', f'Size: {len(data)}', f'MD5sum: {hashlib.md5(data).hexdigest()}',
                    f'SHA256: {hashlib.sha256(data).hexdigest()}']
             stanzas.append('\n'.join(st) + '\n')
@@ -229,6 +232,30 @@ def write_repo(root, debs):
            'Description: Debian tools built from source with gexcc as native wasm32', 'SHA256:'] + rel_sums
     open(os.path.join(repo, f'dists/{SUITE}/Release'), 'w').write('\n'.join(rel) + '\n')
     return repo
+
+
+def twins_from_suites(cache, ours):
+    """Debian's arm64 builds of our Multi-Arch: same libraries that come
+    from a later suite (cross/cuts.txt `suite`): trixie's arm64 index has
+    another version of them, and the two of a library must have one, so
+    the image's repository carries Debian's arm64 build of that version."""
+    suites = {}
+    for line in open(os.path.join(HERE, 'cross', 'cuts.txt')):
+        f = line.split('|')[0].split()
+        if len(f) == 3 and f[1] == 'suite':
+            suites[f[0]] = f[2]
+    out = []
+    for suite in sorted(set(suites.values())):
+        pkgs, _ = debfetch.packages(cache, suite, NATIVE)
+        for _, c in ours:
+            if c['Architecture'] != OURS_ARCH or c.get('Multi-Arch') != 'same':
+                continue
+            src = c.get('Source', c['Package']).split(' ')[0]
+            p = pkgs.get(c['Package'])
+            if suites.get(src) == suite and p and p['Version'] == c['Version'] and p['Architecture'] == NATIVE:
+                deb = debfetch.fetch(cache, p)
+                out.append((deb, dict(control(deb), _copy=True)))
+    return out
 
 
 def configure(root, ours, native_pkgs, debian=None):
@@ -349,7 +376,23 @@ def configure(root, ours, native_pkgs, debian=None):
         for item in p.get('Provides', '').split(','):
             if item.strip() and item.strip().split(' ')[0] in ours_pkgs:
                 names.add(n)
-    names = sorted(names)
+    # A library (Multi-Arch: same) is not one of them: Debian's arm64 build
+    # of it is installed beside ours for an arm64 program, at our version
+    libs = set()
+    for _, c in ours:
+        if c['Architecture'] == OURS_ARCH and c.get('Multi-Arch') == 'same':
+            libs.add(c['Package'])
+            libs.update(item.strip().split(' ')[0] for item in c.get('Provides', '').split(',') if item.strip())
+    names = sorted(names - libs)
+    w('etc/apt/preferences.d/gex-twins',
+      '# Debian\'s arm64 build of a library of ours at our version: the two\n'
+      '# builds of a Multi-Arch: same library must have one version\n' +
+      ''.join(f'\nPackage: {c["Package"]}:{NATIVE}\nPin: version {c["Version"]}\nPin-Priority: 1001\n'
+              for _, c in ours if c['Architecture'] == OURS_ARCH and c.get('Multi-Arch') == 'same'))
+    # dpkg: a file in two packages is the later one's (Debian's arm64 build
+    # of a tool beside ours, two providers of one path): an install never
+    # stops on it
+    w('etc/dpkg/dpkg.cfg.d/gex-overwrite', '# an install never stops on a file another package has\nforce-overwrite\n')
     w('etc/apt/preferences.d/gex-native',
       '# Our native tools (musl-linux-wasm32) are never replaced by Debian\'s\n'
       '# arm64 builds; libraries are not pinned (docs/gexcc.md §6.1a).\n'
@@ -672,11 +715,13 @@ def main():
                 f = os.path.join(root, real_rel(root, p.lstrip('/')))
                 if os.path.isfile(f):
                     cmd5.append((p, md5(f)))
-        status.append(status_stanza(without(ctl, leave_out), cmd5))
+        # ours are held: apt never removes or replaces one to meet what an
+        # install asks for (it says it cannot, and the desktop stays whole)
+        status.append(status_stanza(without(ctl, leave_out), cmd5, hold=(deb, idx) in image_ours))
     open(os.path.join(root, 'var/lib/dpkg/status'), 'w').write('\n'.join(status))
     link_alternatives(root, alts)
     configure(root, ours, native, pkgs)
-    write_repo(root, ours)
+    write_repo(root, ours + twins_from_suites(a.cache, ours))
 
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs
                if not os.path.islink(os.path.join(d, f)))
