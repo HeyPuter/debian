@@ -55,6 +55,9 @@ const app = await start({
   debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size' && k !== 'wisp')),
   ...(wisp ? { wisp } : {}),
   baseUrl: new URL('./', location.href),
+  // hosts the page answers from the site's own files (mksite.sh APT_REPO:
+  // http://gex-site/ is the repository of every package of ours)
+  ...(site.pageHosts ? { pageHosts: site.pageHosts } : {}),
   hostx: 'rootful',
   // ready when plasmashell has loaded the desktop (gex-kde-session turns
   // on the line), not at the X server's first frame

@@ -21,6 +21,10 @@
 # TREE.tar must then hold the same objects the units were built from (the
 # project's build/rootfs).
 #
+# APT_REPO=DIR: an apt repository (build-wasm32.sh's REPO_URL repo) served
+# under OUT/apt/, which the page answers the guest's http://gex-site/ from
+# (site.json pageHosts): fetched only when apt asks for a file.
+#
 # Serve OUT over https (mk/serve.mjs): the page needs cross-origin isolation.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -86,6 +90,17 @@ print(f'units: {len(units)} objects, {len(pins)} pins')
 PY
 else
     printf '{"tar": ["kde.tar"], "env": [], "switches": {}}\n' > "$OUT/site.json"
+fi
+if [ -n "${APT_REPO:-}" ]; then
+    rm -rf "$OUT/apt"
+    cp -alL "$APT_REPO" "$OUT/apt" 2>/dev/null || { rm -rf "$OUT/apt"; cp -aL "$APT_REPO" "$OUT/apt"; }
+    python3 -I - "$OUT/site.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+site = json.load(open(p))
+site['pageHosts'] = {'gex-site': 'apt/'}
+json.dump(site, open(p, 'w'), indent=1)
+PY
 fi
 # the tree, and the runtime's large files, compressed
 zstd -q -f -T0 "-$LEVEL" --long=27 "$TAR" -o "$OUT/kde.tar.zst"

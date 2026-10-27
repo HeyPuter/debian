@@ -29,6 +29,8 @@ import debfetch  # noqa: E402
 
 a_minimal = True
 a_native_ours = False
+# where apt finds our repository (--repo-url), the image's own by default
+a_repo_uri = 'file:/var/lib/gex-apt'
 
 OURS_ARCH = 'musl-linux-wasm32'
 NATIVE = 'arm64'
@@ -194,11 +196,12 @@ def info_name(ctl):
     return ctl['Package']
 
 
-def write_repo(root, debs):
+def write_repo(root, debs, repo=None):
     """Our packages as an apt repository at /var/lib/gex-apt (Packages,
     Release; the .debs themselves are installed already and not copied,
-    but for --repo-debs and a twin from another suite)."""
-    repo = os.path.join(root, 'var/lib/gex-apt')
+    but for --repo-debs and a twin from another suite), or at REPO outside
+    the image (--repo-out), every .deb in it."""
+    repo = repo or os.path.join(root, 'var/lib/gex-apt')
     rel_sums = []
     # wasm32 tools, and dpkg/apt labelled arm64 (one index per architecture)
     for arch in (OURS_ARCH, NATIVE):
@@ -213,7 +216,12 @@ def write_repo(root, debs):
             data = open(deb, 'rb').read()
             if ctl.get('_copy'):
                 os.makedirs(os.path.dirname(os.path.join(repo, fn)), exist_ok=True)
-                shutil.copy(deb, os.path.join(repo, fn))
+                if os.path.exists(os.path.join(repo, fn)):
+                    os.unlink(os.path.join(repo, fn))
+                try:
+                    os.link(os.path.realpath(deb), os.path.join(repo, fn))
+                except OSError:
+                    shutil.copy(deb, os.path.join(repo, fn))
             st = [f'{k}: {v}' for k, v in ctl.items() if not k.startswith('_')]
             st += [f'Filename: {fn}', f'Size: {len(data)}', f'MD5sum: {hashlib.md5(data).hexdigest()}',
                    f'SHA256: {hashlib.sha256(data).hexdigest()}']
@@ -394,7 +402,7 @@ def configure(root, ours, native_pkgs, debian=None):
       f'Types: deb\nURIs: {SECURITY_URI}\nSuites: {SUITE}-security\nComponents: main\n'
       f'Architectures: {NATIVE}\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n')
     w('etc/apt/sources.list.d/gex.sources',
-      f'Types: deb\nURIs: file:/var/lib/gex-apt\nSuites: {SUITE}\nComponents: main\n'
+      f'Types: deb\nURIs: {a_repo_uri}\nSuites: {SUITE}\nComponents: main\n'
       f'Architectures: {OURS_ARCH} {NATIVE}\nTrusted: yes\n')
     # (dpkg and apt of ours are labelled arm64: o=gex's 1001 keeps them)
     names = {c['Package'] for _, c in ours if c['Architecture'] == OURS_ARCH}
@@ -615,6 +623,10 @@ def main():
     ap.add_argument('--list-native', action='store_true',
                     help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--repo-url', default='',
+                    help="our repository is served there (a page-served host's http:// URL): every one of ours "
+                         "offered, the repository written to --repo-out, not into the image")
+    ap.add_argument('--repo-out', default='', help='with --repo-url: where the repository is written')
     ap.add_argument('--repo-debs', action='store_true',
                     help="offer apt every one of ours, their .debs copied into the image's repository (otherwise only the image's own)")
     ap.add_argument('--apt-notes', default='',
@@ -624,9 +636,14 @@ def main():
     ap.add_argument('--arch', default='arm64',
                     help="Debian's architecture for the tree (amd64: the cross build's chroot)")
     a = ap.parse_args()
-    global a_minimal, a_native_ours, NATIVE
+    global a_minimal, a_native_ours, NATIVE, a_repo_uri
     a_minimal = not a.full
     a_native_ours = a.native_ours
+    if a.repo_url:
+        if not a.repo_out:
+            sys.exit('--repo-url needs --repo-out')
+        a_repo_uri = a.repo_url
+        a.repo_debs = True
     NATIVE = a.arch
 
     ours = []
@@ -800,7 +817,9 @@ def main():
     configure(root, offered, native, pkgs)
     if a.apt_notes:
         apt_notes(root, a.apt_notes)
-    write_repo(root, offered + twins_from_suites(a.cache, offered))
+    if a.repo_out and os.path.exists(a.repo_out):
+        shutil.rmtree(a.repo_out)
+    write_repo(root, offered + twins_from_suites(a.cache, offered), repo=a.repo_out or None)
 
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs
                if not os.path.islink(os.path.join(d, f)))
