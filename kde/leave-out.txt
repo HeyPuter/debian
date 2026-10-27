@@ -17,9 +17,9 @@ libc-bin       | Debian's is glibc's arm64 ldconfig, getent, locale and iconv, a
 python3.13           | not built for wasm32 yet | python3 (the python3 packages are only what the image's tools name)
 python3.13-minimal   | as above | as above
 libpython3.13-stdlib | as above | as above
-cpp                  | not built for wasm32 yet (gcc's preprocessor) | xrdb's #include and #define in X resources
-gdb                  | not built for wasm32 yet; only drkonqi uses it | backtraces in crash reports
-drkonqi              | Plasma's crash reporter: a page has nowhere to send a report | the crash dialog after a program dies
+cpp                  | GCC's preprocessor is GCC itself (cc1), and GCC has no wasm32-hosted build | Plasma's colours and fonts in X resources for non-Qt X programs (krdb's xrdb -merge runs cpp; the font settings' xrdb -nocpp still work)
+gdb                  | gdb debugs through ptrace, which gex does not have | gdb
+drkonqi              | Plasma's crash reporter gets its backtrace by attaching gdb (ptrace, which gex does not have) | the crash dialog after a program dies
 libpipewire-0.3-0t64 | no PipeWire daemon in a page (no audio or screen capture service) | Qt Multimedia's PipeWire backend
 qml6-module-org-kde-pipewire | as above | screencast thumbnails in the task manager
 # two packages of one role, both pulled by the closure: one is left out
