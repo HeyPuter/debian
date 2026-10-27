@@ -72,13 +72,20 @@ fi
 # a launch can be timed to its window
 if [ "${GEX_KDE_XACTIVE:-0}" = 1 ]; then
     (until xprop -root _NET_ACTIVE_WINDOW >/dev/null 2>&1; do sleep 5; done
-     # line-buffered: xprop's stdio holds a pipe's output in a block
-     lb=; command -v stdbuf >/dev/null && lb='stdbuf -oL'
-     $lb xprop -root -spy _NET_ACTIVE_WINDOW | while read -r line; do
+     # line by line: xprop's stdio holds a pipe's output in a block, and
+     # stdbuf's preload does nothing for a wasm32 program, so xprop gets a
+     # terminal (script) where there is one
+     spy='xprop -root -spy _NET_ACTIVE_WINDOW'
+     if command -v script >/dev/null; then script -qfc "$spy" /dev/null
+     elif command -v stdbuf >/dev/null; then stdbuf -oL $spy
+     else $spy; fi | tr -d '\r' | while read -r line; do
          id=${line##* }
          case $id in 0x*) ;; *) continue ;; esac
          [ "$id" = 0x0 ] && continue
-         echo "gex-kde-session: active $(xprop -id "$id" WM_CLASS 2>/dev/null | sed 's/.*= //') at $(date +%s.%N)"
+         # the time first, from bash itself where it can (a date and an
+         # xprop run take a while under translation)
+         at=${EPOCHREALTIME:-$(date +%s.%N)}
+         echo "gex-kde-session: active $(xprop -id "$id" WM_CLASS 2>/dev/null | sed 's/.*= //') at $at"
      done) &
 fi
 # GEX_KDE_LISTHOME=SECONDS (debugging): what the session has made in the
@@ -119,11 +126,12 @@ fi
 # against GEX_KDE_XACTIVE's line for its window
 if [ -n "${GEX_KDE_LAUNCH:-}" ]; then
     export GEX_KDE_LAUNCH GEX_KDE_LAUNCH_AFTER
-    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c '
+    # (this shell again where it is bash, for its clock)
+    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- "${BASH:-sh}" -c '
         (until [ "$(xprop -root _NET_ACTIVE_WINDOW 2>/dev/null | sed "s/.* //")" != 0x0 ] && xprop -root _NET_ACTIVE_WINDOW >/dev/null 2>&1; do sleep 2; done
          sleep "${GEX_KDE_LAUNCH_AFTER:-90}"
          for k in 1 2; do
-             echo "gex-kde-session: launch $k at $(date +%s.%N)"
+             echo "gex-kde-session: launch $k at ${EPOCHREALTIME:-$(date +%s.%N)}"
              $GEX_KDE_LAUNCH & p=$!
              sleep 120; kill $p 2>/dev/null; sleep 30
          done) &
