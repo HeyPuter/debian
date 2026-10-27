@@ -45,7 +45,13 @@ def main():
         ver = s['Version']
         if pin and pin != ver:
             sys.exit(f'{name}: pinned {pin}, {a.suite} has {ver}')
+        # the directory dpkg-source makes by default: the upstream version,
+        # without epoch or Debian revision (accountsservice's meson.build
+        # takes its version from the directory's name, and refuses one with
+        # the revision)
         upver = ver.split(':', 1)[-1]
+        if '-' in upver:
+            upver = upver.rsplit('-', 1)[0]
         d = os.path.join(a.into, f'{name}-{upver}')
         if not os.path.isdir(d):
             sums = {}
