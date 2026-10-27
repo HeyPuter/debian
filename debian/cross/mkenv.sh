@@ -147,23 +147,27 @@ SH
 chmod +x "$E/bin/$G-pkg-config"
 # meson, with cuts.txt's options for the source being built after the
 # package's own (meson takes the last -D of an option)
-cat > "$E/bin/meson" <<'SH'
-#!/bin/sh
-if [ "${1:-}" = setup ] && [ -n "${GEXCC_MESON_INIT:-}" ]; then
-    shift
-    set -- setup "$@" $(cat "$GEXCC_MESON_INIT")
-fi
-exec /usr/bin/meson "$@"
-SH
-chmod +x "$E/bin/meson"
-# the cross-exe-wrapper Debian's cross builds run target programs with
-# (meson's env2mfile, debcrossgen, puts it in the cross file as exe_wrapper):
-# a gexcc program is a host executable that runs itself under gexc
+# and a second cross file naming the exe wrapper, so the build runs its
+# test programs (cc.run) as a native one would: debhelper's debcrossgen
+# writes none, and a gexcc program is a host executable that runs itself
+# under gexc (the wrapper only execs it)
 cat > "$E/bin/$G-cross-exe-wrapper" <<'SH'
 #!/bin/sh
 exec "$@"
 SH
 chmod +x "$E/bin/$G-cross-exe-wrapper"
+printf "[binaries]\nexe_wrapper = '%s'\n" "$E/bin/$G-cross-exe-wrapper" > "$E/meson-exe-wrapper.ini"
+cat > "$E/bin/meson" <<SH
+#!/bin/sh
+if [ "\${1:-}" = setup ]; then
+    shift
+    case " \$* " in *" --cross-file"*) set -- --cross-file "$E/meson-exe-wrapper.ini" "\$@" ;; esac
+    [ -n "\${GEXCC_MESON_INIT:-}" ] && set -- "\$@" \$(cat "\$GEXCC_MESON_INIT")
+    set -- setup "\$@"
+fi
+exec /usr/bin/meson "\$@"
+SH
+chmod +x "$E/bin/meson"
 # chrpath: a gexcc module has no ELF dynamic section (its run path is in
 # the wasm module's dylink.0), so `chrpath -d` on one (sqlite3's tcl
 # module, ngtcp2's examples) deletes that run path with gexcc-rpath; any
