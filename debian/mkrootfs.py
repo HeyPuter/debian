@@ -234,6 +234,27 @@ def write_repo(root, debs):
     return repo
 
 
+def apt_notes(root, notes):
+    """apt and apt-get diverted (dpkg-divert's database, locally) to
+    /usr/lib/gex/NAME.real, apt-notes.sh in their place, NOTES its list"""
+    div = []
+    for name in ('apt', 'apt-get'):
+        src = os.path.join(root, 'usr/bin', name)
+        if not os.path.exists(src):
+            continue
+        dst = f'/usr/lib/gex/{name}.real'
+        os.makedirs(os.path.join(root, 'usr/lib/gex'), exist_ok=True)
+        os.rename(src, root + dst)
+        shutil.copy(os.path.join(HERE, 'apt-notes.sh'), src)
+        os.chmod(src, 0o755)
+        div += [f'/usr/bin/{name}', dst, ':']
+    p = os.path.join(root, 'var/lib/dpkg/diversions')
+    old = open(p).read().split('\n') if os.path.exists(p) else []
+    open(p, 'w').write('\n'.join([x for x in old if x] + div) + '\n')
+    os.makedirs(os.path.join(root, 'usr/share/gex'), exist_ok=True)
+    shutil.copy(notes, os.path.join(root, 'usr/share/gex/apt-notes'))
+
+
 def installable_ours(ours, pkgs, provides):
     """ours whose every dependency ours (their architecture's, or
     Multi-Arch: foreign) or Debian's architecture-independent packages
@@ -594,6 +615,8 @@ def main():
     ap.add_argument('--list-native', action='store_true',
                     help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--apt-notes', default='',
+                    help="what apt says of a package an install names (apt-notes.sh): apt and apt-get are diverted to it")
     ap.add_argument('--native-ours', action='store_true',
                     help="dpkg's and apt's own architecture is ours (musl-linux-wasm32), Debian's the foreign one")
     ap.add_argument('--arch', default='arm64',
@@ -766,6 +789,8 @@ def main():
     print(f'{len(ours) - len(offered)} of ours not offered to apt (a dependency neither ours nor Debian\'s meets)',
           file=sys.stderr)
     configure(root, offered, native, pkgs)
+    if a.apt_notes:
+        apt_notes(root, a.apt_notes)
     write_repo(root, offered + twins_from_suites(a.cache, offered))
 
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs

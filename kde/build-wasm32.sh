@@ -37,7 +37,7 @@ done
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 # what the image leaves out in both forms (leave-out.txt)
 leave=$(grep -v '^#' "$HERE/leave-out.txt" | cut -d'|' -f1 | awk 'NF {print $1}' | paste -sd,)
-python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure --native-ours --leave-out "$leave" ${OURS_FOR:+--ours-for "$OURS_FOR"}
+python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure --native-ours --apt-notes "$HERE/apt-notes.txt" --leave-out "$leave" ${OURS_FOR:+--ours-for "$OURS_FOR"}
 # gexcc's libc.so, which its shared programs and libraries (GEXCC_SHARED,
 # as xbuild.py builds them) load: no Debian package has it
 if [ -n "${GEXCC_PREFIX:-}" ]; then
