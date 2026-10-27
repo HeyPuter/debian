@@ -7,7 +7,7 @@ InRelease (gpgv, debian-archive-keyring) -> Sources.xz (SHA256 from
 InRelease) -> the .dsc (SHA256 from Sources) -> the tarballs (dpkg-source
 checks them against the .dsc). `dpkg-source -x` unpacks and applies
 debian/patches; then debian/patches/SRCPKG/*.patch are applied
-with `patch -p1` in name order. A VERSION pin that no longer matches the
+with `patch -p1` in name order (with --patches, only the ones it names). A VERSION pin that no longer matches the
 index fails (a Debian point release changes the pin explicitly).
 
 Prints `SRCPKG VERSION DIR` per package. An existing DIR/SRCPKG-VERSION is
@@ -33,6 +33,9 @@ def main():
     ap.add_argument('--suite', default='trixie')
     ap.add_argument('--cache', default=os.path.expanduser('~/gex-sandbox/scratch/CC/deb'))
     ap.add_argument('--into', required=True)
+    # only these of debian/patches/SRCPKG (comma-separated file names; empty:
+    # none), for a build that lists each source change it makes
+    ap.add_argument('--patches')
     ap.add_argument('pkgs', nargs='+')
     a = ap.parse_args()
     idx = sources(a.cache, a.suite)
@@ -74,7 +77,10 @@ def main():
             # hash came from the signed index, which is the stronger chain.
             subprocess.run(['dpkg-source', '--no-check', '--require-strong-checksums', '-x', dsc, d],
                            check=True, stdout=subprocess.DEVNULL)
+            only = None if a.patches is None else set(filter(None, a.patches.split(',')))
             for p in sorted(glob.glob(os.path.join(HERE, 'patches', name, '*.patch'))):
+                if only is not None and os.path.basename(p) not in only:
+                    continue
                 subprocess.run(['patch', '-p1', '-s', '-i', p], cwd=d, check=True)
         print(name, ver, d)
 

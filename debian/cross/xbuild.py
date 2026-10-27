@@ -5,8 +5,8 @@ debian/rules (dpkg-buildpackage), in the build chroot.
     xbuild.py --chroot DIR --prefix GEXCC_PREFIX --env ENVDIR --work DIR SRCPKG...
 
 For each source package, in order:
-  1. fetch and unpack it (debsrc.py: Debian's patches; ours only if
-     debian/patches/SRCPKG exists, which for this build it should not);
+  1. fetch and unpack it (debsrc.py: Debian's patches; of ours only the
+     ones cuts.txt lists for SRCPKG, each with its reason);
   2. its Build-Depends, split as Debian's cross builds split them: a
      dependency that is `:native`, Architecture: all or Multi-Arch: foreign
      runs on the build machine and must be in the chroot; Architecture: all
@@ -436,6 +436,7 @@ class Builder:
     def fetch(self, name):
         r = subprocess.run([sys.executable, '-I', os.path.join(HERE, '..', 'debsrc.py'), '--cache', self.cache,
                             '--suite', suite_of(name),
+                            '--patches', ','.join(sorted(CUTS.get(name, {}).get('patch', ()))),
                             '--into', os.path.join(self.work, 'src'), name], capture_output=True, text=True)
         if r.returncode:
             raise RuntimeError(f'fetch: {r.stderr.strip()[-300:]}')
