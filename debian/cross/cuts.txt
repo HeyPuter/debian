@@ -221,6 +221,8 @@ kwin      cmake NATIVE_PREFIX=/usr | the prefix that build of the scanner finds 
 kwin      env DEB_CXXFLAGS_MAINT_APPEND='-include type_traits' | kwin builds as C++23, where libc++'s <utility> no longer pulls in <type_traits>, and Qt 6.8's qcompare_impl.h uses std::is_null_pointer_v having included only <utility> (libstdc++, Debian's compiler, still includes it) | nothing
 kf6-kwallet cut libgpgme-dev              | gpgme1.0's rules build its Qt 5 and Python bindings with no knob (--enable-languages="python cpp qt5 qt6"), so gpgme pulls Qt 5 and CPython | GPG-encrypted wallets in KWallet (Blowfish wallets remain)
 kf6-kwallet cut libgpgmepp-dev            | as above | as above
+kf6-kpty cut libutempter-dev               | KPty runs the utempter helper (a setgid program, as a forked child of the terminal's own child) to write a utmp record for every terminal it opens: one more fork of a Konsole-sized process, about 0.7 s between the window and the shell | utmp records for terminal sessions (who and w do not list Konsole's shells)
+kf6-kpty cmake CMAKE_DISABLE_FIND_PACKAGE_UTEMPTER=ON | debian/rules passes -DUTEMPTER_EXECUTABLE, so CMake finds the helper without libutempter-dev | as above
 phonon    patch 0001-rules-qt6-only.patch    | debian/rules only (packaging, approved): it deletes two Qt 5 headers with rm -v and makes the Qt 5 library's shlibs, so the Qt 6-only build fails without it | nothing beyond the Qt 5 half below
 phonon    cmake PHONON_BUILD_QT5=OFF       | debian/rules builds Qt 5 and Qt 6 in one tree (the option is ON by default); plasma-workspace needs Phonon4Qt6 | Phonon for Qt 5 apps
 phonon    cut qtbase5-dev                  | the Qt 5 half's | as above
