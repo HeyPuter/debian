@@ -196,8 +196,8 @@ def info_name(ctl):
 
 def write_repo(root, debs):
     """Our packages as an apt repository at /var/lib/gex-apt (Packages,
-    Release; the .debs themselves are installed already and not copied
-    unless --repo-debs)."""
+    Release; the .debs themselves are installed already and not copied,
+    but for --repo-debs and a twin from another suite)."""
     repo = os.path.join(root, 'var/lib/gex-apt')
     rel_sums = []
     # wasm32 tools, and dpkg/apt labelled arm64 (one index per architecture)
@@ -615,6 +615,8 @@ def main():
     ap.add_argument('--list-native', action='store_true',
                     help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--repo-debs', action='store_true',
+                    help="offer apt every one of ours, their .debs copied into the image's repository (otherwise only the image's own)")
     ap.add_argument('--apt-notes', default='',
                     help="what apt says of a package an install names (apt-notes.sh): apt and apt-get are diverted to it")
     ap.add_argument('--native-ours', action='store_true',
@@ -785,7 +787,14 @@ def main():
     # apt is offered only those of ours it can install: one needing a
     # package of ours that is not built (python3 without python3.13) is
     # left out, and Debian's build of it is what apt installs
-    offered = installable_ours(ours, pkgs, provides)
+    # and of ours only the image's, whose .debs need no copy (apt reinstalls
+    # one from the index, and installs no other of ours: the repository has
+    # no .debs, so Debian's arm64 build is what it fetches), unless
+    # --repo-debs copies every one of ours into the repository
+    in_image = {d for d, _ in image_ours}
+    offered = installable_ours(ours if a.repo_debs else [(d, c) for d, c in ours if d in in_image], pkgs, provides)
+    if a.repo_debs:
+        offered = [(d, dict(c, _copy=True)) for d, c in offered]
     print(f'{len(ours) - len(offered)} of ours not offered to apt (a dependency neither ours nor Debian\'s meets)',
           file=sys.stderr)
     configure(root, offered, native, pkgs)
