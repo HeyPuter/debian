@@ -52,6 +52,13 @@ fi
 # overlay's /bin/bash link would replace bash with a link to itself)
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# glibc's C.UTF-8 locale, from the libc-bin the image leaves out: an arm64
+# program apt installs (tmux) refuses to start in a UTF-8 locale without it
+lb=$(ls "$CACHE"/pool/libc-bin_*_arm64.deb 2>/dev/null | tail -1)
+if [ -n "$lb" ] && [ ! -d "$O/tree/usr/lib/locale/C.utf8" ]; then
+    mkdir -p "$O/tree/usr/lib/locale"
+    dpkg-deb --fsys-tarfile "$lb" | tar -C "$O/tree" -xf - ./usr/lib/locale/C.utf8
+fi
 XDG_DATA_DIRS="$O/tree/usr/share" update-mime-database "$O/tree/usr/share/mime"
 [ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
 # Each icon theme's cache (icon-theme.cache, which Debian's trigger makes on
