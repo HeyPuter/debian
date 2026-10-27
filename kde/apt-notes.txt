@@ -20,3 +20,9 @@ gwenview          pending | its arm64 build needs arm64 kio6 and kimageformat6-p
 elisa             pending | its arm64 build needs arm64 kio6 and KDE QML modules, and the desktop's are wasm32 | a wasm32 build of elisa
 # installs, does not run
 chromium          runtime | Debian's arm64 Chromium asks for a 4 GiB address-space reservation (its V8 and PartitionAlloc cage), which the 32-bit guest arena cannot give | the wasm32 Chromium build
+# Go: its linker places a program at 0x10000, inside gex's runtime region
+# (below 0x300000), with no relocations to move it by; the go tool and
+# everything it builds alike
+golang-go         runtime | Go's linker places programs at 0x10000, below gex's runtime region, and they carry no relocations to move them | no replacement yet
+golang            runtime | as golang-go | no replacement yet
+golang-1.24-go    runtime | as golang-go | no replacement yet
