@@ -56,12 +56,14 @@ const server = createServer((req, res) => {
   createReadStream(f).pipe(res);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/${process.env.KDE_QUERY ? `?${process.env.KDE_QUERY}` : ''}`;
+// KDE_URL: boot a served demo instead of SITE (bytes then come from the
+// server's own log, not "served")
+const url = (process.env.KDE_URL || `http://127.0.0.1:${server.address().port}/`) + (process.env.KDE_QUERY ? `?${process.env.KDE_QUERY}` : '');
 const prof = mkdtempSync(join(tmpdir(), 'gex-kde-'));
 const port = 9400 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
   '--use-angle=vulkan', '--enable-features=Vulkan', '--window-size=1280,800', `--remote-debugging-port=${port}`,
-  '--remote-allow-origins=*', `--user-data-dir=${prof}`,
+  '--remote-allow-origins=*', `--user-data-dir=${prof}`, ...(process.env.KDE_URL ? ['--ignore-certificate-errors'] : []),
   // KDE_CHROME_FLAGS: more browser flags, for diagnosis only (the demo runs
   // in a browser without any)
   ...(process.env.KDE_CHROME_FLAGS ? process.env.KDE_CHROME_FLAGS.split(' ').filter(Boolean) : []),
