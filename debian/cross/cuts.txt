@@ -401,6 +401,8 @@ accountsservice  cut valac                    | Vala compiler, for its Vala bind
 accountsservice  meson vapi=false             | the Vala API is on by default | as above
 accountsservice  exclude .vapi                | libaccountsservice-dev lists the Vala API files | as above
 accountsservice  exclude .gir                 | libaccountsservice-dev lists the introspection XML | as above
+accountsservice  exclude gir-1.0              | and its directory | as above
+accountsservice  exclude vala                 | libaccountsservice-dev lists the Vala API's directory | as above
 sudo  cut libapparmor-dev                 | AppArmor's build pulls python3.13, systemtap, avahi and gtk3 | sudo's AppArmor profile switching; gex has no AppArmor
 lvm2  cut libcmap-dev              | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
 lvm2  cut libcorosync-common-dev   | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)

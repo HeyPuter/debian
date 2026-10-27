@@ -652,6 +652,9 @@ class Builder:
         # at level 0 even where the rules export a stricter level, since a
         # wasm module has no symbol versions and every versioned list differs
         sysroot = os.path.join(os.path.realpath(self.a.prefix), 'sysroot')
+        # msgfmt's ITS rules from the target's -dev packages (polkit's for a
+        # .policy), as a native build finds them in /usr/share/gettext/its
+        env += f' GETTEXTDATADIRS={sysroot}/usr/share/gettext'
         makevars = ['DPKG_GENSYMBOLS_CHECK_LEVEL=0'] + (c['make'] if c else [])
         env += " MAKEFLAGS='" + ' '.join(v.replace(' ', '\\ ') for v in makevars) + "'"
         if c and (c['drop'] or c['exclude']):
