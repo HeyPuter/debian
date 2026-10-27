@@ -23,6 +23,7 @@
 #                        @SYSROOT@ the target's sysroot; cmake values take
 #                        both too)
 #   SOURCE  profile P    Debian build profile P for SOURCE alone
+#   SOURCE  profile !P   SOURCE built without the default profile P
 #   SOURCE  arch BIN     BIN's Architecture list (the ports it names) gains
 #                        musl-linux-wasm32, as a port adds itself
 #   SOURCE  patch FILE   debian/patches/SOURCE/FILE, a source change (debsrc.py
@@ -98,7 +99,7 @@ qcoro     drop qcoro-qt5-dev              | Qt 5 build | as above
 # Debian's stage1 bootstrap profile, for the sources whose full build needs
 # what is built after them (systemd: libsystemd and libudev only)
 systemd     profile stage1    | systemd's full build needs much of the archive | everything of systemd but libsystemd and libudev (gex runs no init system)
-util-linux  profile stage1    | its full build needs libsystemd and libudev from systemd | util-linux's programs' systemd and audit integration
+util-linux  cut systemd                | the init system itself (its stage1 build here is libsystemd and libudev only); util-linux takes only its unit directory from it | nothing (no units are installed for an init that does not run)
 pam         profile stage1    | its full build needs libaudit | PAM's audit logging
 krb5        profile stage1    | its full build needs openldap and cyrus-sasl2 | Kerberos' LDAP KDB backend and SASL
 libffi      cut dejagnu       | the test suite's runner, not guarded by nocheck | nothing (tests are not run)
@@ -368,3 +369,107 @@ qt6-tools  cmake CMAKE_DISABLE_FIND_PACKAGE_Qt6QmlLSPrivate=TRUE | qt6-declarati
 qt6-tools  exclude designer/libcontainerextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcontainerextension.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libcustomwidgetplugin | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libcustomwidgetplugin.so (Designer itself and the qquickwidget plugin stay)
 qt6-tools  exclude designer/libtaskmenuextension | Qt's Designer examples are not built in a cross build (only the assistant example is), so designer-qt6-plugins' example plugin is never made | Qt Designer's example plugin libtaskmenuextension.so (Designer itself and the qquickwidget plugin stay)
+
+plasma-integration  cut libkf5config-dev           | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5configwidgets-dev    | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5guiaddons-dev        | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5i18n-dev             | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5iconthemes-dev       | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5kio-dev              | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5notifications-dev    | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5wayland-dev          | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5widgetsaddons-dev    | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5windowsystem-dev     | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libkf5xmlgui-dev           | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libqt5waylandclient5-dev   | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut libqt5x11extras5-dev       | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut qtbase5-dev                | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut qtbase5-private-dev        | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut qtdeclarative5-dev         | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut qtquickcontrols2-5-dev     | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  cut qtwayland5-dev-tools       | its Qt5 half: KDE Frameworks 5 and Qt5 (48 sources) | the Plasma theme for Qt5 programs; the session has none
+plasma-integration  drop plasma5-integration  | it is the Qt5 half | as above
+plasma-integration  cmake BUILD_QT5=OFF       | debian/rules passes -DBUILD_QT5=ON | as above
+cdebconf  profile pkg.cdebconf.nogtk          | its GTK frontend pulls gtk2, gtk3, gobject-introspection, python3 and Qt5 (~280 sources) through base-passwd | debconf's GTK frontend (the image asks no questions)
+accountsservice  cut gobject-introspection    | introspection pulls python3.13, systemtap, avahi and gtk3 | accountsservice's GObject introspection data (nothing in the session reads it)
+accountsservice  cut gir1.2-gio-2.0-dev       | as above | as above
+accountsservice  cut gir1.2-gobject-2.0-dev   | as above | as above
+accountsservice  cut libgirepository1.0-dev   | as above | as above
+accountsservice  drop gir1.2-accountsservice-1.0 | it is the introspection data | as above
+accountsservice  meson introspection=false    | introspection is on by default | as above
+accountsservice  cut valac                    | Vala compiler, for its Vala bindings | the Vala API (a build-time file)
+accountsservice  meson vapi=false             | the Vala API is on by default | as above
+accountsservice  exclude .vapi                | libaccountsservice-dev lists the Vala API files | as above
+accountsservice  exclude .gir                 | libaccountsservice-dev lists the introspection XML | as above
+sudo  cut libapparmor-dev                 | AppArmor's build pulls python3.13, systemtap, avahi and gtk3 | sudo's AppArmor profile switching; gex has no AppArmor
+lvm2  cut libcmap-dev              | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libcorosync-common-dev   | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libcpg-dev               | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libdlm-dev               | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libdlmcontrol-dev        | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libquorum-dev            | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  cut libsanlock-dev           | lvmlockd's cluster locking: corosync, dlm, pacemaker, sanlock (~20 sources) | shared volume groups across hosts (lvmlockd)
+lvm2  autoconf enable_lvmlockd_dlm=no      | debian/rules passes --enable-lvmlockd-dlm | as above
+lvm2  autoconf enable_lvmlockd_sanlock=no  | debian/rules passes --enable-lvmlockd-sanlock | as above
+lvm2  drop lvm2-lockd                      | it is lvmlockd | as above
+cryptsetup  cut libssh-dev                 | only for cryptsetup-ssh (the SSH token plugin) | LUKS tokens kept on an SSH server
+cryptsetup  autoconf enable_ssh_token=no   | the SSH token plugin builds when libssh is found | as above
+cryptsetup  drop cryptsetup-ssh            | it is the SSH token plugin | as above
+libblockdev  cut libvolume-key-dev         | volume_key pulls NSS and gpgme | the crypto plugin's key escrow (bd_crypto_escrow_device)
+libblockdev  cut libnss3-dev               | as above | as above
+libblockdev  autoconf with_escrow=no       | escrow is on by default | as above
+libblockdev  cut libndctl-dev              | NVDIMM management library (ndctl) | the NVDIMM plugin; there are no NVDIMMs in a page
+libblockdev  autoconf with_nvdimm=no       | the NVDIMM plugin is on by default | as above
+libblockdev  drop libblockdev-nvdimm3      | it is the NVDIMM plugin | as above
+libblockdev  drop libblockdev-nvdimm-dev   | as above | as above
+libblockdev  drop libblockdev-plugins-all  | it depends on every plugin, the NVDIMM one too | as above
+libblockdev  cut libpython3-dev            | Python bindings (python3.13 for the target) | the python3 gi overrides (python3-blockdev)
+libblockdev  autoconf with_python3=no      | the bindings are on by default | as above
+libblockdev  drop python3-blockdev         | it is the bindings | as above
+libblockdev  cut dh-sequence-python3       | as above | as above
+libblockdev  cut dh-sequence-gir           | GObject introspection pulls python3.13, systemtap, avahi and gtk3 | libblockdev's introspection data (nothing in the session reads it)
+libblockdev  cut libgirepository1.0-dev    | as above | as above
+libblockdev  autoconf enable_introspection=no | introspection is on when found | as above
+libblockdev  drop gir1.2-blockdev-3.0      | it is the introspection data | as above
+libblockdev  exclude .gir                  | libblockdev-dev lists the introspection XML | as above
+udisks2  cut dh-sequence-gir               | GObject introspection, as for libblockdev | udisks2's introspection data (Plasma's Solid uses D-Bus, not it)
+udisks2  cut gobject-introspection         | as above | as above
+udisks2  cut libgirepository1.0-dev        | as above | as above
+udisks2  autoconf enable_introspection=no  | introspection is on when found | as above
+udisks2  drop gir1.2-udisks-2.0            | it is the introspection data | as above
+udisks2  exclude .gir                      | libudisks2-dev lists the introspection XML | as above
+libbytesize  cut libpython3-dev            | Python bindings (python3.13 for the target, then systemtap, avahi, gtk3) | the python3 module (python3-bytesize)
+libbytesize  cut dh-sequence-python3       | as above | as above
+libbytesize  autoconf with_python3=no      | debian/rules passes --with-python3 | as above
+libbytesize  drop python3-bytesize         | it is the module | as above
+bash  profile !nodoc                       | debian/rules fills bash-doc's examples whether or not the profile builds bash-doc | nothing (bash-doc is built)
+accountsservice  cut locales-all              | every locale compiled (the test suite's; the build is nocheck) | nothing
+json-c  cmake DISABLE_EXTRA_LIBS=ON         | the sysroot's libbsd is found and linked for arc4random, and its libmd has no shlibs entry | nothing (json-c seeds from /dev/urandom instead)
+gzip  cut less                             | the test suite's (zless); the build is nocheck | nothing
+gawk  cut locales-all                      | every locale compiled (the test suite's; the build is nocheck) | nothing
+x11-xserver-utils  autoconf ac_cv_path_CPP_PATH=/usr/bin/mcpp,/usr/bin/cpp | xrdb preprocesses with mcpp (ours) before cpp, which is GCC's (an arm64 compiler in a wasm32 image) | nothing
+sed  autoconf with_included_regex=yes        | debian/rules passes --without-included-regex, glibc's GNU regex API, which musl lacks | nothing (gnulib's copy of it is built in)
+kf6-kfilemetadata  cut libepub-dev           | libepub.so.0 lives in /usr/lib, where dpkg-shlibdeps finds no package for it in the cross build | EPUB metadata (title, author) in Dolphin's information panel
+procps  cut dejagnu                          | the test suite's; the build is nocheck | nothing
+psmisc  cut dejagnu                          | the test suite's; the build is nocheck | nothing
+coreutils  autoconf gl_cv_func_getlogin_works=yes | gnulib replaces musl's getlogin with one reading the logind sessions through libsystemd, and Makefile.am links logname without libsystemd (on glibc it is not replaced) | logname reports $LOGNAME (musl's getlogin) rather than the session's login name
+sed  profile !nodoc                         | sed's tarball ships sed.info and make install installs it, while debian/rules under nodoc removes the info directory expecting it empty | nothing (the info manual is built)
+sudo  autoconf with_apparmor=no             | debian/rules passes --with-apparmor (the cut libapparmor-dev above) | as above
+libnvme  meson python=disabled              | debian/rules passes -Dpython=enabled; the bindings need python3.13 for the target | the python3 module (python3-libnvme)
+libnvme  drop python3-libnvme               | it is the module | as above
+libnvme  cut dh-sequence-python3            | as above | as above
+kf6-kfilemetadata  cmake CMAKE_DISABLE_FIND_PACKAGE_EPub=ON | the sysroot holds ebook-tools' libepub (built for another source), which find_package(EPub) finds although the Build-Depends is cut | as above
+lvm2  patch 0001-standard-fds-freopen.patch | musl's stdin, stdout and stderr are const; lvm reassigns them when fd 0, 1 or 2 is closed | nothing (the stream is reopened in place on the same fd)
+# Not built at all: udisks2 and what only it needs (libblockdev, cryptsetup,
+# parted, libnvme, lvm2, volume-key and NSS under it); the KDE image leaves
+# udisks2 out (kde/leave-out.txt), so Dolphin's Devices panel and Plasma's
+# device notifier list no drives
+perl  patch 0001-cross-config-musl-linux-wasm32.patch | Debian's cross build takes each port's probed configuration from debian/cross/ARCH, which has none for musl-linux-wasm32 | nothing (packaging files only: perl's Configure run once with the wasm32 compiler)
+dpkg  patch 0001-cputable-wasm32.patch | dpkg's configure takes the host architecture from its own data/cputable, which has no wasm32 | nothing
+util-linux  patch 0001-install-musl-no-col-enosys.patch | debian/*.install only: on musl col is not built (configure requires glibc) nor enosys (no audit architecture for wasm32) | col (filters reverse line feeds) and enosys
+newt  patch 0001-rules-nodoc-tutorial.patch | debian/rules builds the tutorial with docbook2html whatever the profile (docbook-utils pulls TeX Live, 36 packages, into the build machine) | libnewt-dev's HTML tutorial
+newt  cut docbook-utils | as above | as above
+perl  env DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel=1" | debian/rules configures the static, shared and debug perls as parallel targets, and each cross configuration first builds the native miniperl in the same tree (one removes the others' host/ mid-build) | nothing (a serial build)
+apt  profile pkg.apt.nosqv                | sqv is Rust (sequoia), and there is no Rust for wasm32 here; Debian's profile verifies with gpgv instead | nothing (gpgv checks the archive signatures)
+apt  cmake SQV_EXECUTABLE=SQV_EXECUTABLE-NOTFOUND | CMake finds the build machine's sqv (the chroot's own apt needs it) and apt would call sqv at run time | as above
+apt  patch 04-rules-nosqv-gpgv.patch | debian/rules only: under pkg.apt.nosqv the gpgv dependency, not the build machine's /usr/bin/sqv deciding | as above

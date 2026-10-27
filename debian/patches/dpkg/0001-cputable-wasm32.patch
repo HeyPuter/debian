@@ -1,0 +1,11 @@
+wasm32 in dpkg's CPU table, as the cross environment's tables have it
+(mkenv.sh): dpkg's configure takes the host architecture from its own
+data/cputable.
+
+--- a/data/cputable	2026-10-26 23:32:18.425031794 -0400
++++ b/data/cputable	2026-10-26 23:32:18.427031798 -0400
+@@ -52,3 +52,4 @@
+ sh4eb		sh4eb		sh4eb			32	big
+ sparc		sparc		sparc			32	big
+ sparc64		sparc64		sparc64			64	big
++wasm32		wasm32		wasm32			32	little

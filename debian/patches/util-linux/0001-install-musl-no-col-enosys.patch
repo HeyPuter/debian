@@ -1,0 +1,64 @@
+debian/*.install only (packaging): on musl util-linux builds no col (its
+configure requires glibc) and no enosys (linux/audit.h has no audit
+architecture for wasm32), so the install lists leave them out there.
+
+diff -ru a/debian/bsdextrautils.install b/debian/bsdextrautils.install
+--- a/debian/bsdextrautils.install	2026-10-26 23:32:02.803003137 -0400
++++ b/debian/bsdextrautils.install	2026-10-26 23:32:02.811003152 -0400
+@@ -1,12 +1,12 @@
+ #!/usr/bin/dh-exec
+-usr/bin/col
++[!musl-linux-any] usr/bin/col
+ usr/bin/colcrt
+ usr/bin/colrm
+ usr/bin/column
+ usr/bin/hexdump
+ usr/bin/look
+ usr/bin/ul
+-<!nodoc> usr/share/man/man1/col.1
++[!musl-linux-any] <!nodoc> usr/share/man/man1/col.1
+ <!nodoc> usr/share/man/man1/colcrt.1
+ <!nodoc> usr/share/man/man1/colrm.1
+ <!nodoc> usr/share/man/man1/column.1
+diff -ru a/debian/util-linux-extra.install b/debian/util-linux-extra.install
+--- a/debian/util-linux-extra.install	2026-10-26 23:32:02.805003141 -0400
++++ b/debian/util-linux-extra.install	2026-10-26 23:32:02.813003156 -0400
+@@ -10,7 +10,7 @@
+ sbin/mkfs.minix usr/sbin/
+ [linux-any] usr/bin/bits
+ [linux-any] usr/bin/coresched
+-[linux-any] usr/bin/enosys
++[!musl-linux-any !hurd-any !kfreebsd-any] usr/bin/enosys
+ [linux-any] usr/bin/exch
+ [linux-any] usr/bin/fadvise
+ [linux-any] usr/bin/fincore
+@@ -29,7 +29,7 @@
+ <!nodoc> usr/share/man/man8/mkfs.minix.8
+ [linux-any] <!nodoc> usr/share/man/man1/bits.1
+ [linux-any] <!nodoc> usr/share/man/man1/coresched.1
+-[linux-any] <!nodoc> usr/share/man/man1/enosys.1
++[!musl-linux-any !hurd-any !kfreebsd-any] <!nodoc> usr/share/man/man1/enosys.1
+ [linux-any] <!nodoc> usr/share/man/man1/exch.1
+ [linux-any] <!nodoc> usr/share/man/man1/fadvise.1
+ [linux-any] <!nodoc> usr/share/man/man1/fincore.1
+diff -ru a/debian/util-linux-locales.install b/debian/util-linux-locales.install
+--- a/debian/util-linux-locales.install	2026-10-26 23:32:02.808003147 -0400
++++ b/debian/util-linux-locales.install	2026-10-26 23:32:02.814003158 -0400
+@@ -2,7 +2,7 @@
+ usr/share/locale/*/*/util-linux.mo
+ 
+ # bsdextrautils
+-<!nodoc> debian/tmp/usr/share/man/*/man1/col.1
++[!musl-linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/col.1
+ <!nodoc> debian/tmp/usr/share/man/*/man1/colcrt.1
+ <!nodoc> debian/tmp/usr/share/man/*/man1/colrm.1
+ <!nodoc> debian/tmp/usr/share/man/*/man1/column.1
+@@ -140,7 +140,7 @@
+ # util-linux-extra
+ [linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/bits.1
+ [linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/coresched.1
+-[linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/enosys.1
++[!musl-linux-any !hurd-any !kfreebsd-any] <!nodoc> debian/tmp/usr/share/man/*/man1/enosys.1
+ [linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/exch.1
+ [linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/fadvise.1
+ [linux-any] <!nodoc> debian/tmp/usr/share/man/*/man1/fincore.1

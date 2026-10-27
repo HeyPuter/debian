@@ -1,0 +1,27 @@
+debian/rules and libnewt-dev.install only (packaging): under the nodoc
+profile the tutorial (docbook2html, which pulls TeX Live into the build
+machine) is not built, and libnewt-dev does not list it.
+
+diff -ru a/debian/libnewt-dev.install b/debian/libnewt-dev.install
+--- a/debian/libnewt-dev.install	2026-10-26 23:33:20.007144760 -0400
++++ b/debian/libnewt-dev.install	2026-10-26 23:33:30.353163739 -0400
+@@ -1,5 +1,4 @@
+ /usr/include/newt.h
+ usr/lib/*/libnewt.a 
+-tutorial/*	usr/share/doc/libnewt-dev/tutorial.html
+ usr/lib/*/libnewt.so
+ usr/lib/*/pkgconfig
+diff -ru a/debian/rules b/debian/rules
+--- a/debian/rules	2026-10-26 23:33:20.002144751 -0400
++++ b/debian/rules	2026-10-26 23:33:20.038144817 -0400
+@@ -55,8 +55,10 @@
+ 
+ override_dh_auto_build:
+ 	dh_auto_build
++ifeq (,$(filter nodoc,$(DEB_BUILD_PROFILES)))
+ 	mkdir -p tutorial
+ 	(cd tutorial && docbook2html ../tutorial.sgml )
++endif
+ 	ar cqv libnewt_pic.a shared/*.o
+ 
+ override_dh_auto_install:

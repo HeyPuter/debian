@@ -1,0 +1,33 @@
+musl declares stdin, stdout and stderr const, so they cannot be assigned:
+when fd 0, 1 or 2 is closed, reopen the stream on /dev/null in place
+(freopen), as the fopen it replaces would have taken the same lowest fd.
+
+--- a/tools/lvmcmdline.c	2026-10-26 22:51:56.505688670 -0400
++++ b/tools/lvmcmdline.c	2026-10-26 22:51:56.510688679 -0400
+@@ -3389,7 +3389,7 @@
+ 	int err = is_valid_fd(STDERR_FILENO);
+ 
+ 	if (!is_valid_fd(STDIN_FILENO) &&
+-	    !(stdin = fopen(_PATH_DEVNULL, "r"))) {
++	    !freopen(_PATH_DEVNULL, "r", stdin)) {
+ 		if (err)
+ 			perror("stdin stream open");
+ 		else
+@@ -3399,7 +3399,7 @@
+ 	}
+ 
+ 	if (!is_valid_fd(STDOUT_FILENO) &&
+-	    !(stdout = fopen(_PATH_DEVNULL, "w"))) {
++	    !freopen(_PATH_DEVNULL, "w", stdout)) {
+ 		if (err)
+ 			perror("stdout stream open");
+ 		/* else no stdout */
+@@ -3407,7 +3407,7 @@
+ 	}
+ 
+ 	if (!is_valid_fd(STDERR_FILENO) &&
+-	    !(stderr = fopen(_PATH_DEVNULL, "w"))) {
++	    !freopen(_PATH_DEVNULL, "w", stderr)) {
+ 		printf("stderr stream open: %s\n",
+ 		       strerror(errno));
+ 		return 0;

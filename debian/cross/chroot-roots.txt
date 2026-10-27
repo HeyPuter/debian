@@ -126,3 +126,7 @@ xwayland
 # exporter, Multi-Arch: same, arch-independent at build: nothing compiles
 # against it)
 appmenu-gtk3-module
+# apt's Build-Depends: its rules generate hash tables (triehash) and test
+# signatures (gpgv) on the build machine
+triehash
+gpgv
