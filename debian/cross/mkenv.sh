@@ -15,7 +15,7 @@
 #   bin/    gexcc's tools under the GNU type's names (wasm32-linux-musl-gcc,
 #           -g++, -pkg-config, -ar...), which is what debhelper runs in a cross
 #           build
-#   env.sh  PATH, PERL5LIB, and the cross defaults below
+#   env.sh  PATH, PERL5LIB, the runner, and the cross defaults below
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 P=$(realpath "${1:?GEXCC_PREFIX}"); E=$(realpath -m "${2:?ENVDIR}")
@@ -261,5 +261,9 @@ export PATH=$E/bin:$E/host/usr/bin:$P/bin:\$PATH
 export PERL5LIB=$E/host/usr/share/perl5\${PERL5LIB:+:\$PERL5LIB}
 export GEXCC_PREFIX=$P
 export CONFIG_SITE=$P/share/gexcc/config.site
+# containers name no runner (a path of this machine's in every program
+# shipped); what the build runs finds it here instead
+export GEXCC_BAKE_RUNNER=
+export GEXCC_RUNNER=\${GEXCC_RUNNER:-\$(cat $P/lib/gexcc/runner 2>/dev/null)}
 ENV
 echo "$E/env.sh"

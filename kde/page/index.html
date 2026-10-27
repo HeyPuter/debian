@@ -32,6 +32,9 @@
 // on the page's X server. The X server is rootful (one fullscreen screen
 // under KWin, which draws the decorations). `?log=1` shows the session's
 // output; `?size=WxH` fixes the desktop's size (default: the window's).
+// The network goes through a Wisp server, wss://anura.pro/ unless
+// `?wisp=wss://.../` names another; an empty `?wisp=` leaves the guest
+// offline.
 import { start } from './app.mjs';
 const q = new URLSearchParams(location.search);
 const load = document.getElementById('load');
@@ -39,6 +42,7 @@ const bar = document.querySelector('#meter > div');
 const what = document.getElementById('what');
 const logEl = document.getElementById('log');
 if (q.get('log') === '1') document.body.classList.add('log');
+const wisp = q.has('wisp') ? q.get('wisp') : 'wss://anura.pro/';
 const site = await (await fetch('site.json')).json();
 let out = '';
 let desktopUp = false;
@@ -48,7 +52,8 @@ const app = await start({
   container: document.getElementById('desk'),
   size: q.get('size') || 'fit',
   // any other parameter is a runtime switch (?strace=1&stracepid=23, ?heartbeat=N)
-  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size')),
+  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size' && k !== 'wisp')),
+  ...(wisp ? { wisp } : {}),
   baseUrl: new URL('./', location.href),
   hostx: 'rootful',
   // ready when plasmashell has loaded the desktop (gex-kde-session turns
