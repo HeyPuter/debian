@@ -4,3 +4,4 @@
 # expression its build log must match for the fix to apply, then
 # `| what changed`.
 2990a208 -shared .*--whole-archive | --whole-archive stays among the inputs: a shared library linked from libtool's convenience archives had only the members something else referenced (libX11.so without XKB, Xcms and i18n)
+65f09c13 | no path of the build machine's in what is built: the sysroot's headers, gexcc's runtime, libc++/libc++abi and compiler-rt under neutral names, and (in the cross environment) no runner path in containers
