@@ -128,7 +128,12 @@ def clauses(p):
     return out
 
 
-def closure(pkgs, provides, roots, exclude, deps=True):
+def closure(pkgs, provides, roots, exclude, deps=True, shared=frozenset(), arch=None):
+    """Debian packages `roots` need, in order, leaving out `exclude` (what
+    the image has from elsewhere). `shared`: names that something else
+    provides only for packages not of `arch` (another architecture's
+    libraries): a dependency on one is met for those, and is Debian's own
+    package for one of `arch`."""
     chosen, order, todo = set(), [], list(roots)
 
     def real(n):
@@ -142,8 +147,11 @@ def closure(pkgs, provides, roots, exclude, deps=True):
         order.append(n)
         if not deps:
             continue
+        native = arch is not None and pkgs[n].get('Architecture') == arch
         for alts in clauses(pkgs[n]):
             if any(real(a) in chosen or a in exclude for a in alts):
+                continue
+            if not native and any(a in shared for a in alts):
                 continue
             pick = next((real(a) for a in alts if real(a)), None)
             if pick:

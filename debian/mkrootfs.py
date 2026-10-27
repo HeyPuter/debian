@@ -513,10 +513,18 @@ def main():
                 or c['Package'] in ours_for or '*' in ours_for)
 
     our_names = set()
+    # "*": a library of ours (Multi-Arch: same) meets what our packages and
+    # Debian's architecture-independent ones need of it, and leaves Debian's
+    # own in the image for a Debian binary still there that needs it (an
+    # arm64 bash, libtinfo6)
+    our_libs = set()
     for _, c in ours:
         if stands_in(c):
             our_names.add(c['Package'])
             our_names.update(provided(c))
+            if '*' in ours_for and c.get('Multi-Arch') == 'same' and c['Package'] not in ours_for:
+                our_libs.add(c['Package'])
+                our_libs.update(provided(c))
     pkgs, provides = debfetch.packages(a.cache, SUITE, NATIVE)
 
     def shared_for_ours(n):
@@ -562,9 +570,10 @@ def main():
                     roots.append(pick)
                 else:
                     gaps.append(f'{c["Package"]} needs {" | ".join(alts)}')
-        order = debfetch.closure(pkgs, provides, roots, exclude=our_names)
-        # A name ours stand in for is never Debian's in the image.
-        order = [n for n in order if n not in our_names]
+        order = debfetch.closure(pkgs, provides, roots, exclude=our_names - our_libs, shared=our_libs, arch=NATIVE)
+        # A name ours stand in for is never Debian's in the image (but for a
+        # library of ours a Debian binary needs Debian's copy of).
+        order = [n for n in order if n not in our_names or n in our_libs]
         unmet, pull = [], []
         have = set(order) | (have_ours & our_names)
         for n in order:

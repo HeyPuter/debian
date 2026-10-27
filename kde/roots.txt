@@ -14,6 +14,9 @@ dbus
 fonts-hack
 breeze-icon-theme
 x11-xserver-utils
+# xrdb's preprocessor in the wasm32 image (cuts.txt: GCC's cpp is an arm64
+# compiler there, which the image leaves out)
+mcpp
 # Debian's Essential tools (mkrootfs.py takes them from our pool otherwise)
 bash
 dash
