@@ -11,6 +11,28 @@ case " $* " in
     *" install "*|*" reinstall "*) ;;
     *) exit $rc ;;
 esac
+# A package whose setup script (postinst) failed here stays half-configured,
+# and then every later install stops on it too. Marked installed, said so,
+# and the install tried once more: the rest of it goes ahead.
+S=/var/lib/dpkg/status
+tries=0
+while [ $rc != 0 ] && [ $tries -lt 8 ] && grep -q '^Status: install ok half-configured$' "$S" 2>/dev/null; do
+    tries=$((tries + 1))
+    awk 'BEGIN { RS = ""; ORS = "\n\n" }
+         /\nStatus: install ok half-configured(\n|$)/ {
+             sub(/\nStatus: install ok half-configured/, "\nStatus: install ok installed")
+             split($0, l, "\n"); for (i in l) if (l[i] ~ /^Package: /) n = substr(l[i], 10)
+             for (i in l) if (l[i] ~ /^Architecture: /) a = substr(l[i], 15)
+             print n ":" a > "/dev/stderr"
+         }
+         { print }' "$S" 2> "${TMPDIR:-/tmp}/gex-half.$$" > "$S.gex" && mv -f "$S.gex" "$S"
+    while read -r p; do
+        echo "gex: $p's setup script failed here; it is marked installed, and may not work" >&2
+    done < "${TMPDIR:-/tmp}/gex-half.$$"
+    rm -f "${TMPDIR:-/tmp}/gex-half.$$"
+    "$real" "$@"
+    rc=$?
+done
 notes=/usr/share/gex/apt-notes
 # (a package with a note of its own failing is the reason, then: the rest
 # of the command is not said to have failed on the holds)
