@@ -78,7 +78,7 @@ if [ "${GEX_KDE_XACTIVE:-0}" = 1 ]; then
          id=${line##* }
          case $id in 0x*) ;; *) continue ;; esac
          [ "$id" = 0x0 ] && continue
-         echo "gex-kde-session: active $(xprop -id "$id" WM_CLASS 2>/dev/null | sed 's/.*= //')"
+         echo "gex-kde-session: active $(xprop -id "$id" WM_CLASS 2>/dev/null | sed 's/.*= //') at $(date +%s.%N)"
      done) &
 fi
 # GEX_KDE_LISTHOME=SECONDS (debugging): what the session has made in the
@@ -111,5 +111,22 @@ if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
     export GEX_KDE_DBUS_LOG
     exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c \
         'dbus-monitor --session > "$GEX_KDE_DBUS_LOG" 2>&1 & exec startplasma-x11'
+fi
+# GEX_KDE_LAUNCH=CMD (timing): CMD started in the session twice, as a
+# person would from the launcher: GEX_KDE_LAUNCH_AFTER seconds (default 90)
+# after the desktop is first the active window, then killed 120 s later,
+# and started again 30 s after that; each start's time is said, to set
+# against GEX_KDE_XACTIVE's line for its window
+if [ -n "${GEX_KDE_LAUNCH:-}" ]; then
+    export GEX_KDE_LAUNCH GEX_KDE_LAUNCH_AFTER
+    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c '
+        (until [ "$(xprop -root _NET_ACTIVE_WINDOW 2>/dev/null | sed "s/.* //")" != 0x0 ] && xprop -root _NET_ACTIVE_WINDOW >/dev/null 2>&1; do sleep 2; done
+         sleep "${GEX_KDE_LAUNCH_AFTER:-90}"
+         for k in 1 2; do
+             echo "gex-kde-session: launch $k at $(date +%s.%N)"
+             $GEX_KDE_LAUNCH & p=$!
+             sleep 120; kill $p 2>/dev/null; sleep 30
+         done) &
+        exec startplasma-x11'
 fi
 exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf startplasma-x11
