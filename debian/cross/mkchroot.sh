@@ -16,6 +16,11 @@ python3 -I "$HERE/../mkrootfs.py" --arch amd64 --pool "$D.nopool" --cache "$CACH
 libc6=$(ls "$CACHE"/pool/libc6_*_amd64.deb | tail -1)
 dpkg-deb --fsys-tarfile "$libc6" | tar -x -C "$D" --wildcards './usr/lib/x86_64-linux-gnu/gconv/*'
 sed -i '\|^path-exclude=/usr/lib/\*/gconv/\*.so$|d' "$D/etc/dpkg/dpkg.cfg.d/"*
+# groff's fonts and macros: a build that formats its manual pages as text
+# (jbigkit's pbmtojbg.txt) runs groff, which stops without them
+groff=$(ls "$CACHE"/pool/groff-base_*_amd64.deb | tail -1)
+dpkg-deb --fsys-tarfile "$groff" | tar -x -C "$D" --wildcards './usr/share/groff/*'
+sed -i '\|^path-exclude=/usr/share/groff/\*$|d' "$D/etc/dpkg/dpkg.cfg.d/"*
 # dpkg's default vendor, which base-files' maintainer script links
 # (dpkg-vendor fails without it, and Dpkg::Vendor with it)
 [ -e "$D/etc/dpkg/origins/default" ] || ln -s debian "$D/etc/dpkg/origins/default"
