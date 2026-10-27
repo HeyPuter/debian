@@ -190,7 +190,43 @@ async function profileAll(at) {
     writeFileSync(join(OUT, `prof-${at}-${r.pid}.cpuprofile`), JSON.stringify(r.prof));
   }
 }
-let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0;
+let readyAt = null, lastShot = Date.now(), lastNote = 0, peak = 0, lastMem = 0, lastSmaps = 0;
+function smaps() {
+  try {
+    const out = execFileSync('ps', ['-e', '-o', 'pid=,ppid=,rss=,args='], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    const rows = out.trim().split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean);
+    const mine = new Set([String(chrome.pid)]);
+    for (let grew = true; grew;) { grew = false; for (const m of rows) if (mine.has(m[2]) && !mine.has(m[1])) { mine.add(m[1]); grew = true; } }
+    const r = rows.filter((m) => mine.has(m[1]) && /--type=renderer/.test(m[4])).sort((x, y) => Number(y[3]) - Number(x[3]))[0];
+    if (!r) return;
+    const text = execFileSync('cat', [`/proc/${r[1]}/smaps`], { encoding: 'utf8', maxBuffer: 1 << 28 });
+    const maps = [];
+    let cur = null;
+    for (const l of text.split('\n')) {
+      const h = /^([0-9a-f]+)-([0-9a-f]+) \S+ \S+ \S+ \S+\s*(.*)$/.exec(l);
+      if (h) { cur = { size: (parseInt(h[2], 16) - parseInt(h[1], 16)) / 1048576, name: h[3] || 'anon', rss: 0 }; maps.push(cur); continue; }
+      const m = /^Rss:\s+(\d+) kB/.exec(l);
+      if (m && cur) cur.rss = Number(m[1]) / 1024;
+    }
+    const big = maps.filter((m) => m.rss >= 16).sort((x, y) => y.rss - x.rss);
+    const total = maps.reduce((a, m) => a + m.rss, 0);
+    appendFileSync(join(OUT, 'smaps.txt'), `${((Date.now() - t0) / 1000).toFixed(1)} renderer ${r[1]} rss ${total.toFixed(0)} MiB; ${big.length} mappings >= 16 MiB: ${big.slice(0, 40).map((m) => `${m.rss.toFixed(0)}/${m.size >= 1024 ? (m.size / 1024).toFixed(0) + 'G' : m.size.toFixed(0) + 'M'}${m.name === 'anon' ? '' : ' ' + m.name.split('/').pop()}`).join(' ')}\n`);
+  } catch (e) { appendFileSync(join(OUT, 'smaps.txt'), `smaps: ${e.message}\n`); }
+}
+async function memPids() {
+  const rows = await Promise.all([...workers.entries()].map(async ([sid, w]) => {
+    const [h, r] = await Promise.all([
+      Promise.race([b.send('Runtime.getHeapUsage', {}, sid), new Promise((res) => setTimeout(() => res(null), 3000))]).catch(() => null),
+      Promise.race([b.send('Runtime.evaluate', { expression: 'JSON.stringify(globalThis.__gexWho?.() ?? null)', returnByValue: true }, sid), new Promise((res) => setTimeout(() => res(null), 3000))]).catch(() => null)]);
+    let v = null;
+    try { v = r ? JSON.parse(r.result?.value ?? 'null') : null; } catch {}
+    return { mib: (h?.backingStorageSize ?? 0) / 1048576, js: (h?.usedSize ?? 0) / 1048576, who: v?.pid != null ? `${v.pid}${v.tid ? '.' + v.tid : ''} ${(v.cmdline || '?').split(' ')[0].split('/').pop()}` : '-' };
+  }));
+  rows.sort((x, y) => y.mib - x.mib);
+  const total = rows.reduce((a, x) => a + x.mib, 0);
+  const line = `${((Date.now() - t0) / 1000).toFixed(1)} total ${total.toFixed(0)} MiB in ${rows.length} workers; ${rows.slice(0, 12).map((x) => `${x.who} ${x.mib.toFixed(0)}+${x.js.toFixed(0)}js`).join(', ')}`;
+  appendFileSync(join(OUT, 'mempids.txt'), line + '\n');
+}
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
 // `wait S`, `click X,Y` (page pixels; negative from the right or
 // bottom), `type TEXT`, `key NAME` (a DOM key name: Enter, Escape,
@@ -263,7 +299,17 @@ for (;;) {
   await new Promise((r) => setTimeout(r, 1000));
   const st = await ev('({ phase: globalThis.__kde?.phase, readyMs: globalThis.__kde?.readyMs, out: (globalThis.__kde?.out ?? "").slice(-4000), status: globalThis.__kde?.status })').catch(() => null);
   const now = Date.now();
-  peak = Math.max(peak, rss());
+  const r = rss();
+  peak = Math.max(peak, r);
+  // KDE_RSS=1: the browser's resident set every second, as OUT/rss.txt
+  // (seconds from start, MiB)
+  if (process.env.KDE_RSS) appendFileSync(join(OUT, 'rss.txt'), `${((now - t0) / 1000).toFixed(1)} ${r}\n`);
+  // KDE_MEMPIDS=S: every S seconds, each Worker's array buffer backing
+  // stores (its wasm memories) by the guest process it runs, largest first
+  if (process.env.KDE_MEMPIDS && now - lastMem >= Number(process.env.KDE_MEMPIDS) * 1000) { lastMem = now; await memPids(); }
+  // KDE_SMAPS=S: every S seconds, the renderer's resident mappings of
+  // 16 MiB or more (each wasm memory is one), as OUT/smaps.txt
+  if (process.env.KDE_SMAPS && now - lastSmaps >= Number(process.env.KDE_SMAPS) * 1000) { lastSmaps = now; smaps(); }
   if (st?.out) writeFileSync(join(OUT, 'session.txt'), st.out);
   // the whole of it, once a minute (session.txt is its last 4000 characters)
   if (now - lastFull > 60000) { lastFull = now; const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null); if (all) writeFileSync(join(OUT, 'session-full.txt'), all); }
