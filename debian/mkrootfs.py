@@ -234,6 +234,26 @@ def write_repo(root, debs):
     return repo
 
 
+def installable_ours(ours, pkgs, provides):
+    """ours whose every dependency ours (their architecture's, or
+    Multi-Arch: foreign) or Debian's architecture-independent packages
+    meet, to a fixed point"""
+    def names(c):
+        return {c['Package']} | {i.strip().split(' ')[0] for i in c.get('Provides', '').split(',') if i.strip()}
+    debian_any = {n for n, p in pkgs.items() if p.get('Architecture') == 'all' or p.get('Multi-Arch') == 'foreign'}
+    debian_any |= {v for v, n in provides.items() if n in debian_any}
+    left = list(ours)
+    while True:
+        have = set(debian_any)
+        for _, c in left:
+            have |= names(c)
+        keep = [(d, c) for d, c in left
+                if all(any(x in have for x in alts) for alts in debfetch.clauses(c))]
+        if len(keep) == len(left):
+            return keep
+        left = keep
+
+
 def twins_from_suites(cache, ours):
     """Debian's arm64 builds of our Multi-Arch: same libraries that come
     from a later suite (cross/cuts.txt `suite`): trixie's arm64 index has
@@ -383,6 +403,9 @@ def configure(root, ours, native_pkgs, debian=None):
         if c['Architecture'] == OURS_ARCH and c.get('Multi-Arch') == 'same':
             libs.add(c['Package'])
             libs.update(item.strip().split(' ')[0] for item in c.get('Provides', '').split(',') if item.strip())
+    # nor a name whose Debian package is a Multi-Arch: same library (gex-gl
+    # provides libegl1 for ours; Debian's arm64 libegl1 goes beside it)
+    libs |= {n for n in names if (debian or {}).get(n, {}).get('Multi-Arch') == 'same'}
     names = sorted(names - libs)
     w('etc/apt/preferences.d/gex-twins',
       '# Debian\'s arm64 build of a library of ours at our version: the two\n'
@@ -393,6 +416,22 @@ def configure(root, ours, native_pkgs, debian=None):
     # of a tool beside ours, two providers of one path): an install never
     # stops on it
     w('etc/dpkg/dpkg.cfg.d/gex-overwrite', '# an install never stops on a file another package has\nforce-overwrite\n')
+    # Debian's architecture-independent packages are any architecture's
+    # here, and what they need is Debian's arm64 build where ours have none
+    # (all-foreign.sh says how), in apt's indexes after each update and in
+    # dpkg's database after each run, and in the image's database now;
+    # between dpkg's unpack and the hook, dpkg configures what it would
+    # otherwise stop on (the .deb's own control does not say it)
+    hook = 'usr/lib/gex/all-foreign'
+    w(hook, open(os.path.join(HERE, 'all-foreign.sh')).read(), 0o755)
+    w('etc/apt/apt.conf.d/50gex-all-foreign',
+      '// Debian\'s Architecture: all packages are any architecture\'s here (mkrootfs.py)\n'
+      f'APT::Update::Post-Invoke-Success {{ "/{hook}"; }};\n'
+      f'DPkg::Post-Invoke {{ "/{hook} --status"; }};\n')
+    w('etc/dpkg/dpkg.cfg.d/gex-all-foreign',
+      '# an arm64 package\'s dependency on Debian\'s architecture-independent data\n'
+      '# is met by it here (usr/lib/gex/all-foreign)\nforce-depends\n')
+    subprocess.run(['sh', os.path.join(root, hook), root], check=True)
     w('etc/apt/preferences.d/gex-native',
       '# Our native tools (musl-linux-wasm32) are never replaced by Debian\'s\n'
       '# arm64 builds; libraries are not pinned (docs/gexcc.md §6.1a).\n'
@@ -720,8 +759,14 @@ def main():
         status.append(status_stanza(without(ctl, leave_out), cmd5, hold=(deb, idx) in image_ours))
     open(os.path.join(root, 'var/lib/dpkg/status'), 'w').write('\n'.join(status))
     link_alternatives(root, alts)
-    configure(root, ours, native, pkgs)
-    write_repo(root, ours + twins_from_suites(a.cache, ours))
+    # apt is offered only those of ours it can install: one needing a
+    # package of ours that is not built (python3 without python3.13) is
+    # left out, and Debian's build of it is what apt installs
+    offered = installable_ours(ours, pkgs, provides)
+    print(f'{len(ours) - len(offered)} of ours not offered to apt (a dependency neither ours nor Debian\'s meets)',
+          file=sys.stderr)
+    configure(root, offered, native, pkgs)
+    write_repo(root, offered + twins_from_suites(a.cache, offered))
 
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs
                if not os.path.islink(os.path.join(d, f)))

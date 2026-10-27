@@ -17,6 +17,9 @@ libc-bin       | Debian's is glibc's arm64 ldconfig, getent, locale and iconv, a
 python3.13           | not built for wasm32 yet | python3 (the python3 packages are only what the image's tools name)
 python3.13-minimal   | as above | as above
 libpython3.13-stdlib | as above | as above
+python3              | as above: ours without python3.13 is no interpreter, and held it would keep Debian's arm64 python3 out | nothing (Debian's arm64 python3 installs when something asks for it)
+python3-minimal      | as above | as above
+libpython3-stdlib    | as above | as above
 cpp                  | GCC's preprocessor is GCC itself (cc1), and GCC has no wasm32-hosted build | Plasma's colours and fonts in X resources for non-Qt X programs (krdb's xrdb -merge runs cpp; the font settings' xrdb -nocpp still work)
 gdb                  | gdb debugs through ptrace, which gex does not have | gdb
 drkonqi              | Plasma's crash reporter gets its backtrace by attaching gdb (ptrace, which gex does not have) | the crash dialog after a program dies
