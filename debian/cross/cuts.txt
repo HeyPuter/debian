@@ -303,6 +303,7 @@ dbus      meson selinux=disabled         | debian/rules passes -Dselinux=enabled
 policykit-1 cut libselinux1-dev          | as util-linux; polkit's build does not use it | none
 glib2.0   cut libelf-dev                 | elfutils needs fts, obstack and argp, which musl does not have (glibc's) | gresource's listing of resources inside ELF programs (wasm programs are not ELF anyway)
 glib2.0   meson libelf=disabled          | the option is auto, with -Dauto_features=enabled from debhelper (Debian's own udeb build disables it) | as above
+glib2.0   env GEXCC_LENIENT_CALLS=1      | GLib calls GObject's class and instance initialisers with two arguments where G_DEFINE_TYPE's take one, its marshallers pass a signal handler user data it may leave out, and a GFunc may be g_free: wasm traps on each, so gexcc cuts the trailing arguments as C on a real machine does (gex-dylink lenient-calls) | an indirect call in GLib's libraries costs a table.get and a ref.test more
 db5.3     autoconf enable_cxx=no         | its C++ API's sources include db's own atomic.h, whose atomic_init macro breaks libc++'s <atomic> (libstdc++'s headers do not pull it in) | the Berkeley DB C++ API (libdb5.3++); nothing in the closure uses it
 db5.3     drop libdb5.3++t64             | as above | as above
 db5.3     drop libdb5.3++-dev            | as above | as above
