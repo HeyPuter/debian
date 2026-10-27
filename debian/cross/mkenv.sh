@@ -156,6 +156,14 @@ fi
 exec /usr/bin/meson "$@"
 SH
 chmod +x "$E/bin/meson"
+# the cross-exe-wrapper Debian's cross builds run target programs with
+# (meson's env2mfile, debcrossgen, puts it in the cross file as exe_wrapper):
+# a gexcc program is a host executable that runs itself under gexc
+cat > "$E/bin/$G-cross-exe-wrapper" <<'SH'
+#!/bin/sh
+exec "$@"
+SH
+chmod +x "$E/bin/$G-cross-exe-wrapper"
 # chrpath: a gexcc module has no ELF dynamic section (its run path is in
 # the wasm module's dylink.0), so `chrpath -d` on one (sqlite3's tcl
 # module, ngtcp2's examples) deletes that run path with gexcc-rpath; any
