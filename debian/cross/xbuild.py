@@ -96,7 +96,9 @@ def suite_of(src):
 
 
 def profiles_of(src):
-    return PROFILES | CUTS.get(src, {}).get('profile', set())
+    # `profile !P` takes a default profile away from one source
+    own = CUTS.get(src, {}).get('profile', set())
+    return (PROFILES | {p for p in own if not p.startswith('!')}) - {p[1:] for p in own if p.startswith('!')}
 
 
 def arch_matches(term):
@@ -636,8 +638,13 @@ class Builder:
             else:
                 into_sysroot(deb, self.sysroot, self.unpacked, self.a.chroot)
         log = os.path.join(self.work, 'logs', f'{name}.log')
-        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(profiles_of(name)))}" '
-               f'DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel={self.a.jobs}" '
+        profiles = profiles_of(name)
+        # the nodoc option goes with the profile: a source built without the
+        # profile (cuts.txt `profile !nodoc`) has its documentation installed
+        # too (debhelper skips dh_installexamples and the like under nodoc)
+        opts = ' '.join(['nocheck'] + (['nodoc'] if 'nodoc' in profiles else []) + ['noautodbgsym', f'parallel={self.a.jobs}'])
+        env = (f'GEXCC_SHARED={os.environ.get("GEXCC_SHARED", "1")} DEB_BUILD_PROFILES="{" ".join(sorted(profiles))}" '
+               f'DEB_BUILD_OPTIONS="{opts}" '
                'DPKG_GENSYMBOLS_CHECK_LEVEL=0')
         c = CUTS.get(name)
         # make variables over what debian/rules sets (a command-line variable
