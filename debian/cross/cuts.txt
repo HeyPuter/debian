@@ -254,11 +254,8 @@ qt6-speech cut libspeechd-dev             | speech-dispatcher pulls espeak-ng, P
 qt6-speech drop qt6-speech-flite-plugin   | the flite engine | as above
 qt6-speech drop qt6-speech-speechd-plugin | the speech-dispatcher engine | as above
 plasma-desktop cut libsdl2-dev            | SDL pulls PulseAudio, PipeWire, ffmpeg | the game controller KCM
-plasma-desktop cut xserver-xorg-dev       | the X server's SDK headers, for the Mouse and Touchpad KCMs' X11 backends (they talk to xf86-input-libinput's properties) | mouse and touchpad settings under X11 (the KCMs build, with no X11 backend)
-plasma-desktop cut xserver-xorg-input-libinput-dev | as above | as above
-plasma-desktop keep libxkbfile-dev       | xserver-xorg-dev, cut above, depends on it, and the keyboard KCM links X11::xkbfile (Debian's control does not name it) | nothing
-plasma-desktop cmake BUILD_KCM_MOUSE_X11=OFF | without the two above the KCM's CMake stops unless the backend is off | as above
-plasma-desktop cmake BUILD_KCM_TOUCHPAD_X11=OFF | as above | as above
+plasma-desktop keep libxkbfile-dev       | the keyboard KCM links X11::xkbfile (Debian's control does not name it) | nothing
+plasma-desktop cmake BUILD_KCM_TOUCHPAD_X11=OFF | its X11 backend needs the synaptics driver's SDK (xserver-xorg-input-synaptics-dev) as well | touchpad settings under X11 (the KCM builds, with no X11 backend)
 plasma-desktop cut libibus-1.0-dev        | IBus pulls gtk3, dconf, python3-gi | the input method panel's IBus backend (no input methods in the page)
 plasma-desktop cut libscim-dev            | SCIM pulls gtk3 | the input method panel's SCIM backend
 plasma-desktop exclude */libexec/        | the .install line for the input method panels' helpers (kimpanel-ibus-panel, kimpanel-scim-panel), which the two cuts above stop the build making | as above
@@ -531,3 +528,5 @@ gwenview  cut libkimageannotator-qt6-dev | the annotation tool, whose libraries 
 gwenview  cut libkcolorpicker-qt6-dev | as above | as above
 gwenview  cut libkdcrawqt6-dev | libkdcraw builds its Qt 5 and Qt 6 versions together and so pulls a whole Qt 5 | Gwenview's own RAW decoding (kimageformats' RAW plugin, through libraw, still opens RAW files)
 discount  env DEB_CFLAGS_MAINT_APPEND=-Wno-error=implicit-int | its option parser is K&R C with an undeclared (implicit int) parameter, an error since clang 16; the archive's build predates that | nothing
+xorg-server headers xserver-xorg-dev     | the X server's SDK, for the Mouse KCM's X11 backend and kapplymousetheme (startplasma-x11 sets the cursor theme with it): only its headers are used, and the server itself is not built (the page's X server is Xwayland) | nothing
+mesa       headers mesa-common-dev       | the GL headers the X server's SDK depends on; gex's libGL is the target's GL (Mesa is not built for the session) | nothing

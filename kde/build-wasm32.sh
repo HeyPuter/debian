@@ -52,6 +52,11 @@ fi
 # overlay's /bin/bash link would replace bash with a link to itself)
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# The splash screen is off (the overlay's ksplashrc), yet the session tells
+# org.kde.KSplash each stage it reaches, and D-Bus starts that service's
+# plasma_waitforname for it, which waits for a splash that never comes and
+# exits 1. Without the service the calls fail at once.
+rm -f "$O/tree/usr/share/dbus-1/services/org.kde.KSplash.service"
 # glibc's C.UTF-8 locale, from the libc-bin the image leaves out: an arm64
 # program apt installs (tmux) refuses to start in a UTF-8 locale without it
 lb=$(ls "$CACHE"/pool/libc-bin_*_arm64.deb 2>/dev/null | tail -1)
