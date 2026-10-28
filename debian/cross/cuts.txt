@@ -530,3 +530,4 @@ poppler  cmake ENABLE_GPGME=OFF | as above | as above
 gwenview  cut libkimageannotator-qt6-dev | the annotation tool, whose libraries (kImageAnnotator, kColorPicker) build their Qt 5 and Qt 6 versions together and so pull a whole Qt 5 | Gwenview's annotate tool
 gwenview  cut libkcolorpicker-qt6-dev | as above | as above
 gwenview  cut libkdcrawqt6-dev | libkdcraw builds its Qt 5 and Qt 6 versions together and so pulls a whole Qt 5 | Gwenview's own RAW decoding (kimageformats' RAW plugin, through libraw, still opens RAW files)
+discount  env DEB_CFLAGS_MAINT_APPEND=-Wno-error=implicit-int | its option parser is K&R C with an undeclared (implicit int) parameter, an error since clang 16; the archive's build predates that | nothing
