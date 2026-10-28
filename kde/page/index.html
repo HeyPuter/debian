@@ -65,6 +65,8 @@ const app = await start({
   build: {
     arch: 'aarch64',
     tar: site.tar,
+    // the rest bundle's files, read as the session reads them (mksite.sh OPENED)
+    ...(site.lazy ? { lazy: site.lazy } : {}),
     pack: 'pack.json',
     zstd: 'vendor/zstddec-stream.mjs',
     exe: '/usr/bin/bash',

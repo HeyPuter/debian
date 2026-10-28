@@ -44,16 +44,22 @@ const server = createServer((req, res) => {
   if (/^\/units\/[0-9a-f]{64}\//.test(new URL(req.url, 'http://x').pathname)) h['Cache-Control'] = 'public, max-age=31536000, immutable';
   const f = existsSync(p) && statSync(p).isDirectory() ? join(p, 'index.html') : p;
   if (!f.startsWith(SITE) || !existsSync(f) || !statSync(f).isFile()) return res.writeHead(404, h).end();
-  const size = statSync(f).size;
+  const whole = statSync(f).size;
+  // A range (the rest bundle's frames are read so): those bytes, 206.
+  const r = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+  const start = r ? Number(r[1]) : 0, end = r ? Math.min(r[2] ? Number(r[2]) : whole - 1, whole - 1) : whole - 1;
+  if (r && start > end) return res.writeHead(416, { ...h, 'Content-Range': `bytes */${whole}` }).end();
+  const size = end - start + 1;
   served += size;
-  res.writeHead(200, { ...h, 'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Content-Length': size });
+  res.writeHead(r ? 206 : 200, { ...h, 'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Content-Length': size,
+    'Accept-Ranges': 'bytes', ...(r ? { 'Content-Range': `bytes ${start}-${end}/${whole}` } : {}) });
   // KDE_NETLOG=1: each request served, when it came and when its last byte
   // was handed over (seconds from start), as OUT/net.txt
   if (process.env.KDE_NETLOG) {
     const at = ((Date.now() - t0) / 1000).toFixed(3), rel = f.slice(SITE.length);
     res.on('finish', () => appendFileSync(join(OUT, 'net.txt'), `${at} ${((Date.now() - t0) / 1000).toFixed(3)} ${size} ${rel}\n`));
   }
-  createReadStream(f).pipe(res);
+  createReadStream(f, { start, end }).pipe(res);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 // KDE_URL: boot a served demo instead of SITE (bytes then come from the
@@ -315,6 +321,14 @@ for (;;) {
   if (now - lastFull > 60000) { lastFull = now; const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null); if (all) writeFileSync(join(OUT, 'session-full.txt'), all); }
   if (st?.phase === 'ready' && !readyAt) {
     readyAt = now; log(`ready: ${st.readyMs} ms from navigation; served ${served} bytes; browser ${rss()} MiB resident`);
+    // KDE_OPENED=FILE: the files whose bytes the session used up to ready,
+    // in the order of first use (a site's first bundle: mksite.sh OPENED)
+    if (process.env.KDE_OPENED) {
+      const o = await ev('globalThis.__ntOpened ? __ntOpened().then((p) => JSON.stringify(p), (e) => JSON.stringify({ error: String(e) })) : "null"');
+      const paths = JSON.parse(o ?? 'null');
+      if (Array.isArray(paths)) writeFileSync(process.env.KDE_OPENED, paths.join('\n') + '\n');
+      log(`opened: ${Array.isArray(paths) ? `${paths.length} files to ${process.env.KDE_OPENED}` : JSON.stringify(paths)}`);
+    }
     // the start-up marks an instrumented run's profile is cut at (`gexc
     // units profile`): the navigation and the desktop, in ms of the epoch
     const origin = await ev('performance.timeOrigin').catch(() => null);

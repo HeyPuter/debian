@@ -25,6 +25,12 @@
 # under OUT/apt/, which the page answers the guest's http://gex-site/ from
 # (site.json pageHosts): fetched only when apt asks for a file.
 #
+# OPENED=FILE: two bundles (kde/bundles.py), not one: OUT/kde.tar only what
+# a recorded session used up to its desktop (FILE, test-page.mjs
+# KDE_OPENED), in the order it did, and every other file in the rest bundle
+# (OUT/rest.bin, read by Range as the guest reads); kde/trim.txt's paths in
+# neither, unless the session used them.
+#
 # Serve OUT over https (mk/serve.mjs): the page needs cross-origin isolation.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -102,6 +108,26 @@ site['pageHosts'] = {'gex-site': 'apt/'}
 json.dump(site, open(p, 'w'), indent=1)
 PY
 fi
+if [ -n "${OPENED:-}" ]; then
+    full=$OUT/.full.tar
+    if [ "$TAR" = "$OUT/kde.tar" ]; then mv "$TAR" "$full"; else full=$TAR; fi
+    rm -f "$OUT/rest.bin" "$OUT/rest.bin.json" "$OUT/lazy.json"
+    # The page reads the program it starts (index.html's `exe`) from the
+    # first bundle itself, before the kernel counts a read: first.
+    exe=$(sed -n "s/^ *exe: '\([^']*\)'.*/\1/p" "$HERE/page/index.html" | head -1)
+    { [ -n "$exe" ] && echo "$exe"; cat "$OPENED"; } | awk '!seen[$0]++' > "$OUT/.opened"
+    TRIM="$HERE/trim.txt" nice python3 -I "$HERE/bundles.py" "$full" "$OUT/.opened" "$OUT"
+    rm "$OUT/.opened"
+    [ "$full" = "$OUT/.full.tar" ] && rm "$full"
+    TAR=$OUT/kde.tar
+    python3 -I - "$OUT/site.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+site = json.load(open(p))
+site['lazy'] = 'lazy.json'
+json.dump(site, open(p, 'w'), indent=1)
+PY
+fi
 # the tree, and the runtime's large files, compressed
 zstd -q -f -T0 "-$LEVEL" --long=27 "$TAR" -o "$OUT/kde.tar.zst"
 packed=(kde.tar)
@@ -110,6 +136,12 @@ for f in "$OUT"/gex/*.wasm; do
     zstd -q -f -T0 "-$LEVEL" "$f" -o "$f.zst"
     packed+=("$rel")
 done
+# the rest bundle's file list, read before the session starts: packed too,
+# with its bytes' hash, which is how the page knows to fetch it so
+if [ -f "$OUT/lazy.json" ]; then
+    zstd -q -f -19 "$OUT/lazy.json" -o "$OUT/lazy.json.zst"
+    packed+=(lazy.json)
+fi
 python3 -I - "$OUT" "$TAR" "${packed[@]}" <<'PY'
 import json, os, sys, time
 out, tar, names = sys.argv[1], sys.argv[2], sys.argv[3:]
@@ -117,6 +149,9 @@ files = {}
 for n in names:
     plain = tar if n == 'kde.tar' else os.path.join(out, n)
     files['/' + n] = {'size': os.path.getsize(plain), 'zsize': os.path.getsize(os.path.join(out, n + '.zst'))}
+    if n == 'lazy.json':
+        import hashlib
+        files['/' + n]['h'] = hashlib.sha256(open(plain, 'rb').read()).hexdigest()[:16]
 json.dump({'build': time.strftime('%Y%m%d%H%M%S'), 'files': files}, open(os.path.join(out, 'pack.json'), 'w'), indent=1)
 total = sum(e['zsize'] for e in files.values())
 print(f'{out}: {len(files)} packed files, {total} bytes compressed')
