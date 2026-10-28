@@ -27,7 +27,8 @@
 #
 # OPENED=FILE: two bundles (kde/bundles.py), not one: OUT/kde.tar only what
 # a recorded session used up to its desktop (FILE, test-page.mjs
-# KDE_OPENED), in the order it did, and every other file in the rest bundle
+# KDE_OPENED), in the order it did, with kde/boot-files.txt's paths, and
+# every other file in the rest bundle
 # (OUT/rest.bin, read by Range as the guest reads); kde/trim.txt's paths in
 # neither, unless the session used them.
 #
@@ -115,7 +116,9 @@ if [ -n "${OPENED:-}" ]; then
     # The page reads the program it starts (index.html's `exe`) from the
     # first bundle itself, before the kernel counts a read: first.
     exe=$(sed -n "s/^ *exe: '\([^']*\)'.*/\1/p" "$HERE/page/index.html" | head -1)
-    { [ -n "$exe" ] && echo "$exe"; cat "$OPENED"; } | awk '!seen[$0]++' > "$OUT/.opened"
+    # kde/boot-files.txt: what the session may read before its desktop is up
+    # that the recorded run did not (a size of the wallpaper), after it.
+    { [ -n "$exe" ] && echo "$exe"; cat "$OPENED"; grep -v '^#' "$HERE/boot-files.txt" | grep .; } | awk '!seen[$0]++' > "$OUT/.opened"
     TRIM="$HERE/trim.txt" nice python3 -I "$HERE/bundles.py" "$full" "$OUT/.opened" "$OUT"
     rm "$OUT/.opened"
     [ "$full" = "$OUT/.full.tar" ] && rm "$full"

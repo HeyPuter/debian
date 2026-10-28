@@ -1,0 +1,11 @@
+# Files the session reads before its desktop is up that a recorded run may
+# not have read, since which one it reads depends on the browser: always in
+# the first bundle (mksite.sh OPENED=FILE). One path a line.
+#
+# The wallpaper: plasmashell reads the one of trim.txt's sizes nearest the
+# window's, so a run recorded at one size reads one of them, and a window of
+# another size read its own out of the rest bundle before the desktop came up.
+/usr/share/wallpapers/Next/contents/images/1280x800.png
+/usr/share/wallpapers/Next/contents/images/1366x768.png
+/usr/share/wallpapers/Next/contents/images/1920x1080.png
+/usr/share/wallpapers/Next/contents/images/2560x1440.png
