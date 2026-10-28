@@ -1,7 +1,7 @@
 # Copy to local.mk (untracked) and set what differs here. Everything is optional.
 
 # Where every step writes (default: ./out). The KDE trees are a few GB.
-#OUT := /fast/disk/gex-debian-out
+#OUT := /fast/disk/debdemo-out
 
 # A gex checkout of your own, used as it is, instead of pins.mk's commit:
 #GEX_DIR := ~/src/gex

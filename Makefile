@@ -1,4 +1,4 @@
-# gex-debian: Debian root filesystems for gex, and the demos built on them.
+# debdemo: Debian root filesystems for gex, and the demos built on them.
 #
 #   make debian        rootfs/build-debian.sh: a minimal Debian arm64 rootfs,
 #                      $(OUT)/rootfs/debian.tar (Debian's own binaries)

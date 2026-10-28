@@ -119,7 +119,7 @@ harfbuzz  drop libharfbuzz-cairo0         | it is the cairo half | as above
 harfbuzz  meson cairo=disabled            | debian/rules passes -Dauto_features=enabled | as above
 
 # Source patches: two, both where the wasm32 port itself is missing
-libffi    patch 0001-wasm32-backend.patch      | a missing port: libffi's wasm32 backend is emscripten's (calls through JavaScript); the patch puts in gexcc's plain-C backend, gex-debian's debian/libffi-wasm32 (ffi.c, and tramp.inc from its gen.py), from gex's tools/gexcc/debian | nothing; without it there is no libffi (wayland, glib)
+libffi    patch 0001-wasm32-backend.patch      | a missing port: libffi's wasm32 backend is emscripten's (calls through JavaScript); the patch puts in gexcc's plain-C backend, debdemo's debian/libffi-wasm32 (ffi.c, and tramp.inc from its gen.py), from gex's tools/gexcc/debian | nothing; without it there is no libffi (wayland, glib)
 glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function whose address is taken becomes a GOT.func import gex's loader cannot satisfy | nothing (LeakSanitizer hooks); the loader taking weak imports as null would replace it
 libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)
 icu       make GENCCODE_ASSEMBLY=        | configure picks genccode's `-a gcc` for any *-linux* gcc: ELF assembly (.type x,%object), which the wasm assembler does not take; without it pkgdata writes the data as C | nothing (the same data, compiled from C)

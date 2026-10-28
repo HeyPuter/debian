@@ -1,4 +1,4 @@
-// A static server for a gex-debian site (make kde-serve): isolation
+// A static server for a debdemo site (make kde-serve): isolation
 // headers, 404 for a missing file (the runtime asks for units that may not
 // be there).
 //   node serve.mjs ROOT PORT [HOST] [--tls]   (--tls: TLS_DIR's key.pem and cert.pem)

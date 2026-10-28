@@ -1,4 +1,4 @@
-# The sources gex-debian builds against, pinned. `make` fetches gex at its
+# The sources debdemo builds against, pinned. `make` fetches gex at its
 # commit into $(OUT)/src (a shallow fetch of that one commit) unless local.mk
 # names a checkout of your own (GEX_DIR).
 

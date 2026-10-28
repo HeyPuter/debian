@@ -24,7 +24,7 @@ case "$ARCH" in
     *) SUB= WSUF= ;;
 esac
 OUT="${1:-${OUT_DIR:-$(cd "$(dirname "$0")/.." && pwd)/out}/rootfs/${SUB}debian.tar}"
-WORK="${2:-${TMPDIR:-/tmp}/gex-debian$WSUF}"
+WORK="${2:-${TMPDIR:-/tmp}/debdemo$WSUF}"
 MIRROR="${GEX_DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 SUITE="${GEX_DEBIAN_SUITE:-bookworm}"
 

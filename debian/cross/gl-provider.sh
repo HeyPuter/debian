@@ -75,7 +75,7 @@ cat > "$T/lib/DEBIAN/control" <<EOF
 Package: gex-gl
 Version: $VER
 Architecture: musl-linux-wasm32
-Maintainer: gex-debian
+Maintainer: debdemo
 Provides: $(echo "$names" | sed 's/, */ (= 99), /g; s/$/ (= 99)/')
 Section: libs
 Priority: optional
@@ -86,7 +86,7 @@ cat > "$T/dev/DEBIAN/control" <<EOF
 Package: gex-gl-dev
 Version: $VER
 Architecture: musl-linux-wasm32
-Maintainer: gex-debian
+Maintainer: debdemo
 Depends: gex-gl (= $VER), libx11-dev
 Provides: $(echo "$devnames" | sed 's/, */ (= 99), /g; s/$/ (= 99)/')
 Section: libdevel
