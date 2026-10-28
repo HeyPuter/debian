@@ -479,3 +479,54 @@ perl  env DEB_BUILD_OPTIONS="nocheck nodoc noautodbgsym parallel=1" | debian/rul
 apt  profile pkg.apt.nosqv                | sqv is Rust (sequoia), and there is no Rust for wasm32 here; Debian's profile verifies with gpgv instead | nothing (gpgv checks the archive signatures)
 apt  cmake SQV_EXECUTABLE=SQV_EXECUTABLE-NOTFOUND | CMake finds the build machine's sqv (the chroot's own apt needs it) and apt would call sqv at run time | as above
 apt  patch 04-rules-nosqv-gpgv.patch | debian/rules only: under pkg.apt.nosqv the gpgv dependency, not the build machine's /usr/bin/sqv deciding | as above
+# The KDE applications' closure (kdenlive, okular, gwenview, elisa,
+# kimageformats): optional build dependencies through which each would pull
+# hundreds of sources (a Qt 5, PulseAudio, Samba, Python, GTK, VLC, SDL,
+# OpenCV) that the image has no other use for
+v4l-utils  cut qtbase5-dev | qv4l2 and qvidcap, its Qt 5 tools, pull a whole Qt 5 and PulseAudio | the Qt tools (the libraries and command-line tools stay)
+v4l-utils  cut libqt5opengl5-dev | as above | as above
+sane-backends  cut libv4l-dev | the v4l backend (webcams as scanners) | that backend
+colord  cut libsane-dev | colord's scanner support | that support
+gtk+3.0  cut libcolord-dev | colour management, which pulls colord and SANE | colord profiles in GTK 3 programs
+avahi  profile pkg.avahi.nogui | avahi's GTK browser tools | those tools
+imath  cut libboost-python-dev | the Python bindings, which pull Python 3.13 and Boost.Python | Imath's Python module
+imath  cut python3-dev | as above | as above
+imath  cut libpython3-dev | as above | as above
+imath  cut python3-numpy | as above | as above
+imath  cut dh-python | as above | as above
+libtheora  profile pkg.libtheora.nosdl | its SDL example player | that example
+x264  profile stage1 | ffms2 input (x264 reading other video formats), which pulls FFmpeg's whole closure into x264's | x264 reads raw and y4m input only
+ffmpeg  profile pkg.ffmpeg.stage1 | Debian's bootstrap profile: no JACK, PulseAudio, SDL2 (ffplay), Blu-ray, Chromaprint or ZVBI | those inputs and outputs, and ffplay
+ffmpeg  cut libopenal-dev | OpenAL capture | that input
+mlt  cut libopencv-dev | MLT's OpenCV filters (motion tracking), which pull OpenCV, VTK, GDAL and HDF5 | kdenlive's motion tracker
+okular  cut libkf6purpose-dev | the Share menu (KDE Purpose), which pulls KAccounts and a KF5 stack | Okular's Share menu
+gwenview  cut libkf6purpose-dev | as okular | Gwenview's Share menu
+gwenview  cut libcfitsio-dev | FITS (astronomy) images | that format
+kdenlive  cut libkf6purpose-dev | as okular | kdenlive's Share menu
+elisa-player  cut libvlc-dev | the VLC backend, which pulls VLC's closure; Elisa plays through Qt Multimedia without it | the VLC backend
+elisa-player  cut libvlccore-dev | as above | as above
+kf6-kimageformats  cut libheif-dev | HEIF images, which pull libheif's codecs (x265, libde265, kvazaar) | the HEIF format
+kf6-kimageformats  cut libjxl-dev | JPEG XL images | the JPEG XL format
+kf6-kimageformats  cut libavif-dev | AVIF images, which pull AV1 codecs (aom, dav1d, SVT-AV1) | the AVIF format
+poppler  cut qtbase5-dev | poppler-qt5, which pulls a whole Qt 5 (and PulseAudio, Samba, Python through it); Okular uses poppler-qt6 | the Qt 5 binding
+mlt  cut libqt5opengl5-dev | MLT's Qt 5 module (kdenlive uses the Qt 6 one) | that module
+mlt  cut libqt5svg5-dev | as above | as above
+mlt  cut libsdl1.2-compat-dev | MLT's SDL consumers (kdenlive previews through Qt) | those consumers
+mlt  cut libsdl2-dev | as above | as above
+mlt  cut libjack-dev | MLT's JACK module | that module
+mlt  cut libxine2-dev | MLT's xine producer | that producer
+poppler  cut libgtk-3-dev | the GLib binding's GTK demo, which pulls GTK 3 and through it GObject introspection and CPython | that demo
+poppler  cut libgdk-pixbuf-2.0-dev | as above | as above
+poppler  cut libgirepository1.0-dev | poppler-glib's introspection data (gir1.2-poppler), which pulls gobject-introspection and CPython | introspection (the GLib binding itself stays)
+poppler  cut dh-sequence-gir | as above | as above
+poppler  cut gir1.2-cairo-1.0-dev | as above | as above
+poppler  cut gir1.2-gio-2.0-dev | as above | as above
+poppler  cut gir1.2-gobject-2.0-dev | as above | as above
+poppler  cmake ENABLE_GOBJECT_INTROSPECTION=OFF | as above | as above
+poppler  drop gir1.2-poppler-0.18 | as above | as above
+poppler  cut libgpgme-dev | signature checking through GPGME, whose own build insists on its Qt 5 and Python bindings (debian/rules --enable-languages) and so pulls a whole Qt 5 | checking signed PDFs' GPG signatures (NSS signatures stay)
+poppler  cut libgpgmepp-dev | as above | as above
+poppler  cmake ENABLE_GPGME=OFF | as above | as above
+gwenview  cut libkimageannotator-qt6-dev | the annotation tool, whose libraries (kImageAnnotator, kColorPicker) build their Qt 5 and Qt 6 versions together and so pull a whole Qt 5 | Gwenview's annotate tool
+gwenview  cut libkcolorpicker-qt6-dev | as above | as above
+gwenview  cut libkdcrawqt6-dev | libkdcraw builds its Qt 5 and Qt 6 versions together and so pulls a whole Qt 5 | Gwenview's own RAW decoding (kimageformats' RAW plugin, through libraw, still opens RAW files)
