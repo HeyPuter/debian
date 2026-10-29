@@ -14,7 +14,10 @@ CACHE=${DEB_CACHE:-${OUT_DIR:-$ROOT/out}/deb}
 mkdir -p "$O" "$CACHE" "$O/nopool"
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/nopool" --cache "$CACHE" --out "$O/tree" --extra "$roots"
-cp -a "$HERE/overlay/." "$O/tree/"
+# (through the tree's /bin -> usr/bin when it is merged, where the
+# overlay's /bin/bash link would replace bash with a link to itself)
+ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
+tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
 # The interactive shells' welcome (the overlay's /etc/gex-welcome.sh), for
 # root and for users made from /etc/skel
 for rc in "$O/tree/root/.bashrc" "$O/tree/etc/skel/.bashrc"; do
