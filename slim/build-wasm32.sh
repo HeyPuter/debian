@@ -65,6 +65,9 @@ if [ -n "$lb" ] && [ ! -d "$O/tree/usr/lib/locale/C.utf8" ]; then
     dpkg-deb --fsys-tarfile "$lb" | tar -C "$O/tree" -xf - ./usr/lib/locale/C.utf8
 fi
 [ -d "$O/tree/usr/share/glib-2.0/schemas" ] && glib-compile-schemas "$O/tree/usr/share/glib-2.0/schemas"
+# Function names out of every wasm module (debian/stripnames.py): only
+# backtraces read them, and they are a tenth of the modules' bytes
+python3 -I "$ROOT/debian/stripnames.py" "$O/tree"
 leak=$(LC_ALL=C grep -rlaF -- "$HOME/" "$O/tree" 2>/dev/null | sed "s|^$O/tree||")
 if [ -n "$leak" ]; then
     echo "slim/build-wasm32.sh: $(printf '%s\n' "$leak" | wc -l) files name $HOME, as:" >&2

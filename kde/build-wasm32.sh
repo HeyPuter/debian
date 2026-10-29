@@ -77,6 +77,9 @@ for d in "$O/tree/usr/share/icons"/*/; do
     [ -f "$d/index.theme" ] && gtk-update-icon-cache -f -q "$d"
 done
 "$HERE/sycoca.sh" "$O/tree"
+# Function names out of every wasm module (debian/stripnames.py): only
+# backtraces read them, and they are a tenth of the modules' bytes
+python3 -I "$ROOT/debian/stripnames.py" "$O/tree"
 # No path of the build machine's in what ships: a build that records one
 # (apt read its cpu table from the cross environment's path) breaks at run
 # time, and none of this machine's names belong in the image. Debian's own
