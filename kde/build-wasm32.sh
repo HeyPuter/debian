@@ -52,6 +52,13 @@ fi
 # overlay's /bin/bash link would replace bash with a link to itself)
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# The interactive shells' welcome (the overlay's /etc/gex-welcome.sh), for
+# root and for users made from /etc/skel
+for rc in "$O/tree/root/.bashrc" "$O/tree/etc/skel/.bashrc"; do
+    if [ -f "$rc" ] && ! grep -q gex-welcome "$rc"; then
+        printf '\n[ -r /etc/gex-welcome.sh ] && . /etc/gex-welcome.sh\n' >> "$rc"
+    fi
+done
 # The splash screen is off (the overlay's ksplashrc), yet the session tells
 # org.kde.KSplash each stage it reaches, and D-Bus starts that service's
 # plasma_waitforname for it, which waits for a splash that never comes and

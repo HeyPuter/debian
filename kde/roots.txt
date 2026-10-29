@@ -12,6 +12,8 @@ konsole
 kate
 dbus
 fonts-hack
+# zoneinfo: the session is set to the visitor's zone at boot (gex-kde-session)
+tzdata
 breeze-icon-theme
 x11-xserver-utils
 # xrdb's preprocessor in the wasm32 image (cuts.txt: GCC's cpp is an arm64

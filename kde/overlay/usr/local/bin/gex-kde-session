@@ -27,6 +27,26 @@ export XDG_SESSION_TYPE=x11 XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESK
 export XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share:/usr/share
 export KWIN_COMPOSE=N QT_QUICK_BACKEND=software QT_XCB_GL_INTEGRATION=none
 export LANG=C.UTF-8
+# GEX_KDE_TZ=ZONE: the visitor's time zone (the page passes the browser's
+# IANA name), set as a Debian system's is: /etc/localtime a link into
+# tzdata's zoneinfo and /etc/timezone its name. Qt's system zone is TZ when
+# set, else that link's target, else /etc/timezone; libc reads the link. A
+# browser may name a zone by its older alias (Asia/Calcutta), which only
+# tzdata-legacy has: tzdata.zi's link lines give its current name. TZ is
+# unset once the zone is set, as a rule string there (a page's POSIX TZ)
+# is no zone Qt or the clock's settings know by name.
+zi=/usr/share/zoneinfo
+z=${GEX_KDE_TZ:-}
+case $z in *[!A-Za-z0-9_+/-]*|*..*|/*) z= ;; esac
+if [ -n "$z" ] && [ ! -f "$zi/$z" ] && [ -f "$zi/tzdata.zi" ]; then
+    z=$(sed -n "s|^L \([^ ]*\) $z\$|\1|p" "$zi/tzdata.zi" | head -n 1)
+fi
+if [ -n "$z" ] && [ -f "$zi/$z" ]; then
+    ln -sf "$zi/$z" /etc/localtime
+    echo "$z" > /etc/timezone
+    unset TZ
+fi
+unset GEX_KDE_TZ
 # Two malloc arenas, not glibc's eight per CPU: each thread's arena reserves
 # 128 MiB of address space, and the guest has 2 GiB; plasmashell's thread
 # pools (a search in the launcher starts a dozen threads) ran it out, and its

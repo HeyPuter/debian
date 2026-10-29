@@ -15,6 +15,13 @@ mkdir -p "$O" "$CACHE" "$O/nopool"
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/nopool" --cache "$CACHE" --out "$O/tree" --extra "$roots"
 cp -a "$HERE/overlay/." "$O/tree/"
+# The interactive shells' welcome (the overlay's /etc/gex-welcome.sh), for
+# root and for users made from /etc/skel
+for rc in "$O/tree/root/.bashrc" "$O/tree/etc/skel/.bashrc"; do
+    if [ -f "$rc" ] && ! grep -q gex-welcome "$rc"; then
+        printf '\n[ -r /etc/gex-welcome.sh ] && . /etc/gex-welcome.sh\n' >> "$rc"
+    fi
+done
 # The caches packages' triggers make (mkrootfs runs no maintainer scripts),
 # made by the build machine's tools: the MIME database (KService and every
 # file dialog read it) and the compiled GSettings schemas. Both are

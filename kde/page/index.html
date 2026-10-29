@@ -44,6 +44,13 @@ const logEl = document.getElementById('log');
 if (q.get('log') === '1') document.body.classList.add('log');
 const wisp = q.has('wisp') ? q.get('wisp') : 'wss://anura.pro/';
 const site = await (await fetch('site.json')).json();
+// The visitor's time zone by its IANA name, which gex-kde-session sets as
+// the system's (tzdata's zoneinfo is in the tree); `?tz=ZONE` names another
+function tzEnv() {
+  let zone = q.get('tz');
+  try { zone ||= Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* none */ }
+  return zone ? [`GEX_KDE_TZ=${zone}`] : [];
+}
 let out = '';
 let desktopUp = false;
 const t0 = performance.now();
@@ -52,7 +59,7 @@ const app = await start({
   container: document.getElementById('desk'),
   size: q.get('size') || 'fit',
   // any other parameter is a runtime switch (?strace=1&stracepid=23, ?heartbeat=N)
-  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size' && k !== 'wisp')),
+  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size' && k !== 'wisp' && k !== 'tz')),
   ...(wisp ? { wisp } : {}),
   baseUrl: new URL('./', location.href),
   // hosts the page answers from the site's own files (mksite.sh APT_REPO:
@@ -73,7 +80,7 @@ const app = await start({
     // the program's arguments, after argv[0] (app.js puts `exe` first)
     argv: ['/usr/local/bin/gex-kde-session'],
     env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HOME=/root', 'TERM=xterm-256color',
-          'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...(site.env ?? [])],
+          'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...tzEnv(), ...(site.env ?? [])],
     cwd: '/root',
     // the tree's file and directory times: KService compares them with its
     // database's, and rebuilds it (minutes) when they look newer
