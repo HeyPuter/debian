@@ -3,130 +3,383 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KDE Plasma on gex</title>
+<title>KDE Plasma in the Browser</title>
+<meta name="description" content="A real Debian userland with the KDE Plasma desktop, compiled to WebAssembly and running in this browser tab on gex. Nothing to install.">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
 <style>
-  :root { --bg: #1b1e20; --fg: #fcfcfc; --dim: #a1a9b1; --bar: #3daee9; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
-    font: 14px/1.4 "Noto Sans", system-ui, sans-serif; overflow: hidden; }
-  #desk { position: fixed; inset: 0; }
-  #load { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 14px; background: var(--bg); z-index: 1; transition: opacity .4s; }
-  #load.gone { opacity: 0; pointer-events: none; }
-  #load h1 { font-weight: 300; font-size: 22px; margin: 0; }
-  #meter { width: min(420px, 80vw); height: 4px; background: #31363b; border-radius: 2px; overflow: hidden; }
-  #meter > div { height: 100%; width: 0; background: var(--bar); transition: width .2s; }
-  #what { color: var(--dim); font-size: 12px; min-height: 1.4em; text-align: center; max-width: 80vw; }
-  #log { display: none; position: fixed; left: 0; right: 0; bottom: 0; max-height: 40vh; overflow: auto;
-    margin: 0; padding: 8px 16px; background: #000c; color: #ddd; font: 11px/1.3 monospace; z-index: 2;
-    white-space: pre-wrap; }
-  body.log #log { display: block; }
+  :root {
+    --ink: #1b1e22; --muted: #646b75; --faint: #9aa1ab; --line: #e4e7eb; --soft: #f5f7f9;
+    --accent: #1d99f3; --accent-2: #3daee9; --accent-ink: #0f6fb8;
+    color-scheme: light;
+    font-family: "Noto Sans", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  body { min-width: 320px; overflow: hidden; }
+  button { font: inherit; }
+  /* The session's output (the compositor's canvas goes in here), laid out
+     full-window from the start so the desktop is sized to it; the landing
+     page sits over it until the desktop is up. */
+  #desk { position: fixed; inset: 0; background: #1b1e20; }
+  /* not drawn under the landing page (its frames would be composited for nothing) */
+  body:not(.up) #desk { visibility: hidden; }
+
+  #landing { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; overflow-y: auto;
+    background: radial-gradient(1200px 600px at 85% -10%, #e8f4fd 0%, rgba(232,244,253,0) 60%), #fff;
+    transition: opacity .45s ease; }
+  #landing.gone { opacity: 0; pointer-events: none; }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px;
+    border-bottom: 1px solid rgba(228,231,235,.7); background: rgba(255,255,255,.7);
+    backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .brand svg { width: 26px; height: 26px; display: block; }
+  .chip { padding: 2px 9px; border-radius: 999px; background: rgba(29,153,243,.1); color: var(--accent-ink);
+    font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .stack { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .stack span { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+  .stack span + span::before { content: "\00b7"; margin-right: 8px; color: var(--faint); }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 56px; align-items: center;
+    width: 100%; max-width: 1180px; margin: 0 auto; padding: 36px 28px 56px; }
+  .kicker { margin: 0 0 14px; color: var(--accent-ink); font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(32px, 4vw, 46px); line-height: 1.06; font-weight: 300; letter-spacing: -.025em; }
+  h1 b { font-weight: 600; }
+  .copy { margin: 16px 0 0; max-width: 48ch; color: var(--muted); font-size: 16px; font-weight: 300; line-height: 1.6; }
+  .facts { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 9px; }
+  .facts li { display: flex; gap: 10px; align-items: baseline; color: #3a4048; font-size: 14.5px; }
+  .facts li::before { content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); transform: translateY(-1px); }
+  .facts code { font: 13px/1 ui-monospace, "Hack", Menlo, Consolas, monospace; background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+
+  /* the launch panel: the button, then (once pressed) the progress */
+  .launch { margin-top: 26px; max-width: 440px; min-height: 120px; }
+  .launch [data-when] { display: none; }
+  .launch[data-phase="idle"] [data-when~="idle"], .launch[data-phase="busy"] [data-when~="busy"], .launch[data-phase="failed"] [data-when~="failed"] { display: block; }
+  .go { appearance: none; border: 0; border-radius: 12px; padding: 15px 34px; cursor: pointer; color: #fff;
+    font-size: 16px; font-weight: 600; letter-spacing: .01em;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2), var(--accent)); background-size: 220% 100%;
+    animation: drift 6s ease-in-out infinite; transition: transform .15s ease, filter .15s ease; }
+  .go:hover { transform: translateY(-1px); filter: brightness(1.05); }
+  .go:active { transform: none; }
+  .go:focus-visible { outline: 3px solid rgba(29,153,243,.35); outline-offset: 3px; }
+  @keyframes drift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  .hint { margin: 12px 0 0; color: var(--faint); font-size: 13px; }
+
+  .steps { display: flex; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; font-size: 12.5px; font-weight: 600; }
+  .steps li { flex: 1; color: var(--faint); padding-top: 9px; border-top: 3px solid var(--line); transition: color .2s, border-color .2s; }
+  .steps li.on { color: var(--accent-ink); border-top-color: var(--accent); }
+  .steps li.done { color: var(--muted); border-top-color: var(--accent-2); }
+  .track { position: relative; height: 8px; border-radius: 999px; background: #eceff2; overflow: hidden; }
+  .fill { height: 100%; width: 0; border-radius: 999px; background: var(--accent); transition: width .15s linear; }
+  /* waiting with no measure: a segment that slides (a transform, which the
+     compositor animates without repainting the page while the session starts) */
+  .track.wait .fill { width: 30% !important; transition: none; animation: slide 1.3s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  .meta { display: flex; justify-content: space-between; gap: 16px; margin-top: 10px; color: var(--muted);
+    font-size: 13px; font-variant-numeric: tabular-nums; }
+  .meta span:last-child { color: var(--faint); }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--faint); font-size: 12.5px; font-weight: 600; user-select: none; }
+  summary:hover { color: var(--muted); }
+  #log { height: 160px; overflow: auto; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: #fafbfc; color: #3b3f45; font: 11.5px/1.45 ui-monospace, "Hack", Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .err { margin: 0; padding: 12px 14px; border: 1px solid #f3c2b8; border-radius: 10px; background: #fff4f1; color: #8f2f1c; font-size: 13.5px; line-height: 1.5; }
+
+  /* the preview: a desktop in a window */
+  .shot { margin: 0; border-radius: 14px; overflow: hidden; background: #fff; border: 1px solid var(--line);
+    box-shadow: 0 30px 60px -28px rgba(17,35,55,.35), 0 12px 24px -16px rgba(17,35,55,.2); }
+  .shot .chrome { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; background: var(--soft); border-bottom: 1px solid var(--line); }
+  .shot .chrome i { width: 10px; height: 10px; border-radius: 50%; background: #d7dbe0; }
+  .shot .chrome span { margin-left: 10px; color: var(--faint); font-size: 12px; font-weight: 500; }
+  .shot img { display: block; width: 100%; height: auto; aspect-ratio: 1280 / 623; background: #2a2e32; }
+  .shot figcaption { padding: 10px 14px; color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); }
+
+  footer { padding: 0 28px 20px; color: var(--faint); font-size: 12px; text-align: center; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; gap: 36px; padding: 32px 16px 48px; }
+    .bar { padding: 12px 16px; }
+    .stack { display: none; }
+    .launch { max-width: none; }
+    footer { padding: 0 16px 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .go, .track.wait .fill { animation: none; } }
 </style>
 </head>
 <body>
 <div id="desk"></div>
-<div id="load"><h1>KDE Plasma</h1><div id="meter"><div></div></div><div id="what">starting</div></div>
-<pre id="log"></pre>
+<section id="landing">
+  <header class="bar">
+    <div class="brand">
+      <!-- the Plasma logo, as Breeze's start-here-kde-plasma draws it -->
+      <svg viewBox="390 488.5 53 53.5" aria-hidden="true"><path d="m425.24 489.13-6 6 11.33 11.33-11.33 11.33 6 6 17.33-17.33z" fill="#3b3f42" fill-rule="evenodd"/><rect x="399.9" y="489.8" width="6.67" height="6.67" rx="3.33" fill="#fa8865"/><rect x="390.57" y="509.13" width="9.33" height="9.33" rx="4.67" fill="#63c605"/><rect x="403.9" y="528.46" width="13.33" height="13.33" rx="6.67" fill="#1b89f3"/></svg>
+      KDE Plasma <span class="chip">in the browser</span>
+    </div>
+    <div class="stack"><span>Debian 13</span><span>KDE Plasma 6</span><span>WebAssembly</span><span>gex</span></div>
+  </header>
+  <main>
+    <div>
+      <p class="kicker">A whole desktop, in this tab</p>
+      <h1>The <b>KDE Plasma</b> desktop, running in your browser</h1>
+      <p class="copy">A real Debian userland with KDE Plasma, compiled to WebAssembly and run by gex, right here in the page. Nothing to install and no server doing the work: it runs on your machine.</p>
+      <ul class="facts">
+        <li><span>Konsole, Dolphin and Kate, with KWin drawing the windows</span></li>
+        <li><span>apt works: <code>apt install &lt;package&gt;</code> from Konsole</span></li>
+        <li><span><span id="size-fact">One download of about 200 MB</span>, then it starts in about a minute</span></li>
+      </ul>
+      <div class="launch" id="launch" data-phase="idle">
+        <div data-when="idle">
+          <button class="go" id="go" type="button">Launch KDE Plasma</button>
+          <p class="hint" id="hint">Best in a desktop browser with plenty of memory.</p>
+        </div>
+        <div data-when="busy">
+          <ol class="steps" aria-hidden="true"><li id="s-dl">Download</li><li id="s-boot">Start</li><li id="s-desk">Desktop</li></ol>
+          <div class="track" id="track" role="progressbar" aria-label="Loading KDE Plasma" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
+          <div class="meta"><span id="status">Downloading</span><span id="pct"></span></div>
+        </div>
+        <div data-when="failed"><p class="err" id="err"></p></div>
+        <details data-when="busy failed" id="logbox"><summary>Startup log</summary><pre id="log"></pre></details>
+      </div>
+    </div>
+    <figure class="shot">
+      <div class="chrome"><i></i><i></i><i></i><span>Konsole on the Plasma desktop</span></div>
+      <img src="preview.webp" alt="The KDE Plasma desktop in a browser tab, with Konsole open" width="1280" height="623" decoding="async">
+      <figcaption>The desktop you get: the panel, the launcher and real KDE applications.</figcaption>
+    </figure>
+  </main>
+  <footer>Debian and KDE are trademarks of their respective owners. This demo is not affiliated with either project.</footer>
+</section>
 <script type="module">
-// The Debian arm64 KDE session, booted straight to the desktop: bash runs
+// The Debian KDE session, booted straight to the desktop: bash runs
 // gex-kde-session (the tree's /usr/local/bin), which starts startplasma-x11
 // on the page's X server. The X server is rootful (one fullscreen screen
-// under KWin, which draws the decorations). `?log=1` shows the session's
-// output; `?size=WxH` fixes the desktop's size (default: the window's).
+// under KWin, which draws the decorations).
+//
+// The bundle is fetched as soon as the page has drawn, out of sight, and
+// kept as it arrives; Launch hands what has come so far, and the rest as it
+// comes, to the runtime's own fetch of it, so its progress starts where the
+// download is.
+//
+// `?log=1` opens the startup log; `?size=WxH` fixes the desktop's size
+// (default: the window's); `?tz=ZONE` names the time zone (default: the
+// browser's); `?launch=S` presses Launch S seconds after the page loads.
 // The network goes through a Wisp server, wss://anura.pro/ unless
 // `?wisp=wss://.../` names another; an empty `?wisp=` leaves the guest
-// offline.
-import { start } from './app.mjs';
+// offline. Any other parameter is a runtime switch.
 const q = new URLSearchParams(location.search);
-const load = document.getElementById('load');
-const bar = document.querySelector('#meter > div');
-const what = document.getElementById('what');
-const logEl = document.getElementById('log');
-if (q.get('log') === '1') document.body.classList.add('log');
-const wisp = q.has('wisp') ? q.get('wisp') : 'wss://anura.pro/';
-const site = await (await fetch('site.json')).json();
-// The visitor's time zone by its IANA name, which gex-kde-session sets as
-// the system's (tzdata's zoneinfo is in the tree); `?tz=ZONE` names another
-function tzEnv() {
-  let zone = q.get('tz');
-  try { zone ||= Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* none */ }
-  return zone ? [`GEX_KDE_TZ=${zone}`] : [];
+const PAGE_PARAMS = ['log', 'size', 'wisp', 'tz', 'launch'];
+const $ = (id) => document.getElementById(id);
+// times in ms from the navigation (performance.now()'s origin)
+globalThis.__kde = { phase: 'loading', out: '', early: () => [...early.values()].reduce((a, e) => a + e.got, 0) };
+
+// --- the early download ---------------------------------------------------
+// Files the session's start fetches (pack.json's names, compressed: FILE.zst)
+// and that are fetched here first. The runtime asks for them by the same path;
+// the page's fetch answers that from what this download holds.
+const EARLY = ['kde.tar', 'gex/gex_kernel.wasm', 'gex/gex_browser.shared.wasm', 'gex/seed.shared.wasm'];
+const early = new Map(); // URL path -> { chunks, got, done, error, wake, claimed }
+const plainFetch = globalThis.fetch.bind(globalThis);
+const sitePromise = plainFetch('site.json').then((r) => r.json());
+const packPromise = plainFetch('pack.json').then((r) => r.ok ? r.json() : {}).catch(() => ({}));
+
+function fetchEarly(path, build) {
+  const url = new URL(`${path}.zst`, location.href);
+  if (build) url.search = `v=${build}`;
+  const e = { chunks: [], at: 0, got: 0, done: false, error: null, wake: null, claimed: false };
+  early.set(url.pathname, e);
+  const poke = () => { const w = e.wake; e.wake = null; w?.(); };
+  (async () => {
+    const res = await plainFetch(url.href, { priority: 'low' });
+    if (!res.ok) throw new Error(`${url.pathname}: ${res.status}`);
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      e.chunks.push(value);
+      e.got += value.length;
+      poke();
+    }
+    e.done = true;
+    poke();
+  })().catch((err) => { e.error = err; poke(); });
 }
+
+// A fetch of an early file: its bytes so far at once, then the rest as they
+// arrive, each handed over once (the page keeps no copy of what it gave).
+// Any other request, or one after an early download failed, goes out as it is.
+globalThis.fetch = (input, init) => {
+  try {
+    const u = new URL(typeof input === 'string' ? input : input.url ?? String(input), location.href);
+    const e = u.origin === location.origin ? early.get(u.pathname) : null;
+    if (e && !e.claimed && !e.error) {
+      e.claimed = true;
+      const body = new ReadableStream({
+        async pull(c) {
+          for (;;) {
+            if (e.at < e.chunks.length) {
+              const chunk = e.chunks[e.at];
+              e.chunks[e.at++] = null;
+              c.enqueue(chunk);
+              return;
+            }
+            if (e.error) { c.error(e.error); return; }
+            if (e.done) { c.close(); return; }
+            await new Promise((r) => { e.wake = r; });
+          }
+        },
+      });
+      return Promise.resolve(new Response(body, { status: 200, headers: { 'Content-Type': 'application/zstd' } }));
+    }
+  } catch { /* fetched as it is */ }
+  return plainFetch(input, init);
+};
+
+// After the first frame is on screen: the landing page paints first, and the
+// downloads start once it has.
+const appModule = new Promise((resolve) => {
+  requestAnimationFrame(() => setTimeout(async () => {
+    const pack = await packPromise;
+    const files = pack.files ?? {};
+    for (const p of EARLY) if (files[`/${p}`]) fetchEarly(p, pack.build);
+    const total = EARLY.reduce((a, p) => a + (files[`/${p}`]?.zsize ?? 0), 0);
+    if (total) $('size-fact').textContent = `One download of ${Math.round(total / 1e6)} MB`;
+    resolve(import('./app.mjs'));
+  }, 0));
+});
+
+// --- launch ---------------------------------------------------------------
+const panel = $('launch');
+const logEl = $('log');
+if (q.get('log') === '1') $('logbox').open = true;
 let out = '';
-let desktopUp = false;
-const t0 = performance.now();
-globalThis.__kde = { phase: 'loading', out: '', t0 };
-const app = await start({
-  container: document.getElementById('desk'),
-  size: q.get('size') || 'fit',
-  // any other parameter is a runtime switch (?strace=1&stracepid=23, ?heartbeat=N)
-  debug: Object.fromEntries([...q].filter(([k]) => k !== 'log' && k !== 'size' && k !== 'wisp' && k !== 'tz')),
-  ...(wisp ? { wisp } : {}),
-  baseUrl: new URL('./', location.href),
-  // hosts the page answers from the site's own files (mksite.sh APT_REPO:
-  // http://gex-site/ is the repository of every package of ours)
-  ...(site.pageHosts ? { pageHosts: site.pageHosts } : {}),
-  hostx: 'rootful',
-  // ready when plasmashell has loaded the desktop (gex-kde-session turns
-  // on the line), not at the X server's first frame
-  ready: 'manual',
-  build: {
-    arch: 'aarch64',
-    tar: site.tar,
-    // the rest bundle's files, read as the session reads them (mksite.sh OPENED)
-    ...(site.lazy ? { lazy: site.lazy } : {}),
-    pack: 'pack.json',
-    zstd: 'vendor/zstddec-stream.mjs',
-    exe: '/usr/bin/bash',
-    // the program's arguments, after argv[0] (app.js puts `exe` first)
-    argv: ['/usr/local/bin/gex-kde-session'],
-    env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HOME=/root', 'TERM=xterm-256color',
-          'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...tzEnv(), ...(site.env ?? [])],
-    cwd: '/root',
-    // the tree's file and directory times: KService compares them with its
-    // database's, and rebuilds it (minutes) when they look newer
-    mtimes: true,
-    uid: 0,
-    size: 'fit',
-    featuresOff: [],
-    compositor: true,
-    jitFallback: true,
-    gl: false,
-    hostx: true,
-    hostxRootful: true,
-    switches: site.switches ?? {},
-    // the units' keys, from the build (mksite.sh)
-    identities: site.identities ?? null,
-  },
-  onLog: (s) => {
-    out += s;
-    globalThis.__kde.out = out;
-    if (!desktopUp && /Plasma Shell startup completed/.test(out.slice(-s.length - 64))) { desktopUp = true; globalThis.__kde.app?.ready(); }
-    if (q.get('log') === '1') { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; }
-  },
-  onProgress: (p) => {
-    const d = p.download;
-    if (p.phase === 'download' && d.total) {
-      bar.style.width = `${Math.round((d.done / d.total) * 100)}%`;
-      what.textContent = `downloading ${(d.done / 1048576).toFixed(0)} of ${(d.total / 1048576).toFixed(0)} MiB`;
-    } else if (p.phase === 'boot' || p.phase === 'compile') {
-      bar.style.width = '100%';
-      what.textContent = p.boot.program ? `starting ${p.boot.program}` : 'starting the session';
-    }
-    if (p.phase === 'ready') {
-      globalThis.__kde.phase = 'ready';
-      globalThis.__kde.readyMs = Math.round(performance.now() - t0);
-      load.classList.add('gone');
-    }
-  },
-});
-globalThis.__kde.app = app;
-if (desktopUp) app.ready();
-app.exited.then((s) => {
+let launched = false;
+const mb = (n) => (n / 1e6).toFixed(0);
+function step(on) {
+  const ids = ['s-dl', 's-boot', 's-desk'];
+  ids.forEach((id, i) => { $(id).className = i < on ? 'done' : i === on ? 'on' : ''; });
+}
+function bar(frac) {
+  if (frac == null) { $('track').classList.add('wait'); $('track').removeAttribute('aria-valuenow'); return; }
+  $('track').classList.remove('wait');
+  const pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+  $('fill').style.width = `${pct}%`;
+  $('track').setAttribute('aria-valuenow', String(pct));
+  $('pct').textContent = `${pct}%`;
+}
+function fail(msg) {
   globalThis.__kde.phase = 'exited';
-  globalThis.__kde.status = s;
-  what.textContent = `the session ended (${s})`;
-  load.classList.remove('gone');
-});
+  panel.dataset.phase = 'failed';
+  $('err').textContent = msg;
+  $('landing').classList.remove('gone');
+}
+
+async function launch() {
+  if (launched) return;
+  launched = true;
+  globalThis.__kde.launchMs = Math.round(performance.now());
+  panel.dataset.phase = 'busy';
+  step(0);
+  // where the early download is already, before the runtime reports
+  const pack = await packPromise;
+  const total = EARLY.reduce((a, p) => a + (pack.files?.[`/${p}`]?.zsize ?? 0), 0);
+  const got = [...early.values()].reduce((a, e) => a + e.got, 0);
+  if (total) { bar(got / total); $('status').textContent = `Downloading ${mb(got)} of ${mb(total)} MB`; }
+  let bootAt = 0, timer = 0;
+  const tick = () => { $('pct').textContent = `${Math.round((performance.now() - bootAt) / 1000)} s`; };
+  let desktopUp = false;
+  let app;
+  try {
+    const [{ start }, site] = await Promise.all([appModule, sitePromise]);
+    const wisp = q.has('wisp') ? q.get('wisp') : 'wss://anura.pro/';
+    // The visitor's time zone by its IANA name, which gex-kde-session sets as
+    // the system's (tzdata's zoneinfo is in the tree)
+    let zone = q.get('tz');
+    try { zone ||= Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* none */ }
+    app = await start({
+      container: $('desk'),
+      size: q.get('size') || 'fit',
+      debug: Object.fromEntries([...q].filter(([k]) => !PAGE_PARAMS.includes(k))),
+      ...(wisp ? { wisp } : {}),
+      baseUrl: new URL('./', location.href),
+      // hosts the page answers from the site's own files (mksite.sh APT_REPO:
+      // http://gex-site/ is the repository of every package of ours)
+      ...(site.pageHosts ? { pageHosts: site.pageHosts } : {}),
+      hostx: 'rootful',
+      // ready when plasmashell has loaded the desktop (gex-kde-session turns
+      // on the line), not at the X server's first frame
+      ready: 'manual',
+      build: {
+        arch: 'aarch64',
+        tar: site.tar,
+        ...(site.lazy ? { lazy: site.lazy } : {}),
+        pack: 'pack.json',
+        zstd: 'vendor/zstddec-stream.mjs',
+        exe: '/usr/bin/bash',
+        // the program's arguments, after argv[0] (app.js puts `exe` first)
+        argv: ['/usr/local/bin/gex-kde-session'],
+        env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HOME=/root', 'TERM=xterm-256color',
+              'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...(zone ? [`GEX_KDE_TZ=${zone}`] : []), ...(site.env ?? [])],
+        cwd: '/root',
+        // the tree's file and directory times: KService compares them with its
+        // database's, and rebuilds it (minutes) when they look newer
+        mtimes: true,
+        uid: 0,
+        size: 'fit',
+        featuresOff: [],
+        compositor: true,
+        jitFallback: true,
+        gl: false,
+        hostx: true,
+        hostxRootful: true,
+        switches: site.switches ?? {},
+        identities: site.identities ?? null,
+      },
+      onLog: (s) => {
+        out += s;
+        globalThis.__kde.out = out;
+        if (!desktopUp && /Plasma Shell startup completed/.test(out.slice(-s.length - 64))) { desktopUp = true; globalThis.__kde.app?.ready(); }
+        if ($('logbox').open) { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; }
+      },
+      onProgress: (p) => {
+        const d = p.download;
+        if (p.phase === 'download' && d.total) {
+          bar(d.done / d.total);
+          $('status').textContent = `Downloading ${mb(d.done)} of ${mb(d.total)} MB`;
+        } else if (p.phase === 'boot' || p.phase === 'compile') {
+          if (!bootAt) { bootAt = performance.now(); globalThis.__kde.bootMs = Math.round(bootAt); step(1); bar(null); timer = setInterval(tick, 500); tick(); }
+          $('status').textContent = p.boot?.program ? `Starting ${p.boot.program.split('/').pop()}` : 'Starting the session';
+        }
+        if (p.phase === 'ready') {
+          clearInterval(timer);
+          step(3);
+          globalThis.__kde.phase = 'ready';
+          globalThis.__kde.readyMs = Math.round(performance.now());
+          globalThis.__kde.fromLaunchMs = globalThis.__kde.readyMs - globalThis.__kde.launchMs;
+          document.body.classList.add('up');
+          $('landing').classList.add('gone');
+        }
+      },
+    });
+  } catch (e) {
+    clearInterval(timer);
+    fail(`KDE Plasma could not start: ${e?.message ?? e}`);
+    return;
+  }
+  // the desktop is drawn once plasmashell says so; until then the step is "Desktop"
+  const watch = setInterval(() => { if (bootAt && /kwin|plasmashell/.test(out.slice(-4000)) && globalThis.__kde.phase !== 'ready') step(2); }, 1000);
+  globalThis.__kde.app = app;
+  if (desktopUp) app.ready();
+  app.exited.then((s) => {
+    clearInterval(watch);
+    clearInterval(timer);
+    fail(`The session ended (${s}). Reload the page to start it again.`);
+    globalThis.__kde.status = s;
+  });
+}
+$('go').addEventListener('click', launch);
+$('logbox').addEventListener('toggle', () => { if ($('logbox').open) { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; } });
+if (q.has('launch')) setTimeout(launch, Number(q.get('launch')) * 1000 || 0);
 </script>
 </body>
 </html>

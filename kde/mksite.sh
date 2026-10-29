@@ -1,6 +1,6 @@
 #!/bin/bash
 # The KDE demo's web site: gex's app library (an eject page build, from
-# gex's web/build-eject-page.sh) with kde/page/index.html, the session's tree
+# gex's web/build-eject-page.sh) with kde/page/ (index.html), the session's tree
 # as one tar, and pack.json, which names every file served compressed
 # (FILE.zst) with its sizes.
 #
@@ -55,7 +55,8 @@ if [ -d "$TAR" ]; then
     TAR=$OUT/kde.tar
 fi
 cp -a "$PAGE/." "$OUT/"
-cp "$HERE/page/index.html" "$OUT/index.html"
+# the landing page and its files (kde/page/)
+cp -a "$HERE/page/." "$OUT/"
 if [ -n "${UNITS:-}" ]; then
     rm -rf "$OUT/units"
     cp -alL "$UNITS/build/cgen" "$OUT/units"
