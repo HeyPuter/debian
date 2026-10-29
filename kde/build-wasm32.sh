@@ -29,15 +29,11 @@ shift || true
 [ $# -gt 0 ] || { echo "usage: $0 OUT_DIR POOL..." >&2; exit 2; }
 CACHE=${DEB_CACHE:-${OUT_DIR:-$ROOT/out}/deb}
 mkdir -p "$O" "$CACHE"
+# The pools' packages, each with the library Depends its cross build could
+# not compute (debian/shlibdeps.py: links to the originals where nothing is
+# added)
 rm -rf "$O/pool"
-mkdir "$O/pool"
-for p in "$@"; do
-    for d in "$p"/*.deb; do
-        n=$(basename "$d"); n=${n%%_*}
-        rm -f "$O/pool/$n"_*.deb
-        ln -s "$(realpath "$d")" "$O/pool/"
-    done
-done
+python3 -I "$ROOT/debian/shlibdeps.py" "$O/pool" "$@"
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 # what the image leaves out in both forms (leave-out.txt)
 leave=$(grep -v '^#' "$HERE/leave-out.txt" | cut -d'|' -f1 | awk 'NF {print $1}' | paste -sd,)
