@@ -77,3 +77,6 @@ fi
 tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name --exclude=./home/user -cf "$O/debian-slim.tar" .
 tar -C "$O/tree" --owner=1000 --group=1000 --numeric-owner --sort=name -rf "$O/debian-slim.tar" ./home/user
 echo "$O/debian-slim.tar: $(du -h "$O/debian-slim.tar" | cut -f1)"
+# (downloaded once and kept: the slower level pays)
+zstd -q -f -T0 -19 --long=27 "$O/debian-slim.tar" -o "$O/debian-slim.tar.zst"
+echo "$O/debian-slim.tar.zst: $(stat -c %s "$O/debian-slim.tar.zst") bytes"
