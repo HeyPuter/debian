@@ -12,7 +12,8 @@
 // OUT/session.txt the session's output.
 // At `ready`, console.txt also gets the `[gex-mark]` lines `start` and
 // `desktop` (ms of the epoch), which `gexc units profile` cuts a profile at.
-// Env: CHROME (default /usr/bin/chromium), KDE_QUERY (appended to the URL).
+// Env: CHROME (default /usr/bin/chromium), KDE_QUERY (appended to the URL;
+// launch=0, Launch pressed at once, unless it names launch=S).
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -64,7 +65,9 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 // KDE_URL: boot a served demo instead of SITE (bytes then come from the
 // server's own log, not "served")
-const url = (process.env.KDE_URL || `http://127.0.0.1:${server.address().port}/`) + (process.env.KDE_QUERY ? `?${process.env.KDE_QUERY}` : '');
+// the page waits for Launch: pressed at once (`launch=0`) unless KDE_QUERY says when
+const query = /(^|&)launch=/.test(process.env.KDE_QUERY || '') ? process.env.KDE_QUERY : ['launch=0', process.env.KDE_QUERY].filter(Boolean).join('&');
+const url = (process.env.KDE_URL || `http://127.0.0.1:${server.address().port}/`) + `?${query}`;
 const prof = mkdtempSync(join(tmpdir(), 'gex-kde-'));
 const port = 9400 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
