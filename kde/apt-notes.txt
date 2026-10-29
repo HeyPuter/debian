@@ -30,3 +30,9 @@ golang-1.24-go    runtime | as golang-go | no replacement yet
 #   Text::CharWidth into our perl and have perl Provide
 #   libtext-charwidth-perl, or give our perl dynamic loading and a
 #   perlapi-5.40.1 for wasm32 XS modules of ours.
+# pipewire (libpipewire-0.3-0t64, low priority): left out (leave-out.txt),
+#   so our libqt6multimedia6, which needs it, is not offered to apt, nor
+#   what links Qt Multimedia (konsole, dolphin, kate, libkf6textwidgets6,
+#   libkf6texteditor6, the Qt Multimedia and text-to-speech QML modules);
+#   the image has them installed, but apt cannot install them again. A
+#   wasm32 PipeWire client library brings them back to the repository.
