@@ -1,0 +1,30 @@
+# What the KDE image leaves out of its packages' files (mkrootfs.py
+# --path-exclude), in dpkg's form: the image's dpkg configuration carries
+# these too, so a package apt installs later leaves them out the same way.
+# The page downloads the whole image before the desktop starts, so each of
+# these is download time.
+#
+# The "Next" wallpaper (breeze-wallpaper) at one size, the one most screens
+# want, and its dark twin: Plasma picks the closest size it has and scales
+# it (43 MB of twenty sizes, most of them for 4K and wider screens). The
+# 440x247 picture is the settings' preview.
+path-exclude=/usr/share/wallpapers/Next/contents/images/*
+path-exclude=/usr/share/wallpapers/Next/contents/images_dark/*
+path-include=/usr/share/wallpapers/Next/contents/images/1920x1080.png
+path-include=/usr/share/wallpapers/Next/contents/images/440x247.png
+path-include=/usr/share/wallpapers/Next/contents/images_dark/1920x1080.png
+# Photos to pick as a user's picture (System Settings > Users); the user
+# keeps the default face
+path-exclude=/usr/share/plasma/avatars/photos/*
+# the task switcher settings' preview screenshots
+path-exclude=/usr/share/kwin/kcm_kwintabbox/*.png
+# the weather widget's list of US weather stations (not on the panel)
+path-exclude=/usr/share/plasma/weather/noaa_station_list.xml
+# Oxygen's sound theme: Plasma's own is Ocean (kept)
+path-exclude=/usr/share/sounds/oxygen/*
+path-exclude=/usr/share/sounds/Oxygen-*
+# Programs the page's session never starts: the Wayland compositor (the
+# session is X11, kwin_x11) and systemd's daemons (no systemd runs: the
+# session is started from pid 1)
+path-exclude=/usr/bin/kwin_wayland
+path-exclude=/usr/lib/systemd/systemd-*

@@ -685,6 +685,10 @@ def main():
     ap.add_argument('--list-native', action='store_true',
                     help="print the Debian packages of the tree's architecture the image would take, and stop")
     ap.add_argument('--full', action='store_true', help='keep documentation and translations')
+    ap.add_argument('--path-exclude', default='',
+                    help="more of what the image leaves out of its packages, in dpkg's form (path-exclude=GLOB, "
+                         "path-include=GLOB lines): applied as the documentation is, and written to the image's "
+                         "dpkg configuration so apt installs leave it out too")
     ap.add_argument('--repo-url', default='',
                     help="our repository is served there (a page-served host's http:// URL): every one of ours "
                          "offered, the repository written to --repo-out, not into the image")
@@ -700,6 +704,13 @@ def main():
     a = ap.parse_args()
     global a_minimal, a_native_ours, NATIVE, a_repo_uri
     a_minimal = not a.full
+    if a.path_exclude:
+        for line in open(a.path_exclude):
+            k, _, g = line.strip().partition('=')
+            if k == 'path-exclude':
+                EXCLUDE.append(g)
+            elif k == 'path-include':
+                INCLUDE.append(g)
     a_native_ours = a.native_ours
     if a.repo_url:
         if not a.repo_out:
