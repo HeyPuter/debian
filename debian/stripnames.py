@@ -9,6 +9,10 @@ program is its module inside gexcc's ELF executable, whose segments are
 placed by file offset: there the section is kept at its size, renamed and
 zeroed, which costs nothing compressed. Every other section stays
 (gex.forkreach, dylink.0, target_features are read at run time).
+
+Only a module that names shared libraries it needs (dylink.0's
+WASM_DYLINK_NEEDED) loses it: gex finds the entries of a program that
+needs none in its table by their names.
 """
 import hashlib, os, sys
 
@@ -44,10 +48,29 @@ def sections(b, at):
     return out
 
 
+def needs_libs(b, secs):
+    """Whether the module's dylink.0 names a library it needs."""
+    for _, e, sid, name, j in secs:
+        if sid != 0 or name != b'dylink.0':
+            continue
+        ln, i = leb(b, j)
+        i += ln
+        while i < e:
+            kind = b[i]
+            n, i = leb(b, i + 1)
+            if kind == 2:
+                count, _ = leb(b, i)
+                return count > 0
+            i += n
+    return False
+
+
 def strip(b):
     """B without its name section, or None when it has none."""
     if b[:4] == b'\0asm':
         secs = sections(b, 0)
+        if not needs_libs(b, secs):
+            return None
         drop = [(s, e) for s, e, sid, name, _ in secs if sid == 0 and name == b'name']
         if not drop:
             return None
@@ -62,8 +85,11 @@ def strip(b):
         at = b.find(b'\0asm\x01\0\0\0', 0, 4096)
         if at < 0:
             return None
+        secs = sections(b, at)
+        if not needs_libs(b, secs):
+            return None
         out, hit = bytearray(b), False
-        for s, e, sid, name, j in sections(b, at):
+        for s, e, sid, name, j in secs:
             if sid == 0 and name == b'name':
                 ln, k = leb(b, j)
                 out[k:k + ln] = b'gexz'[:ln].ljust(ln, b'z')
