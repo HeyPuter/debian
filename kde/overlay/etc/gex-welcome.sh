@@ -4,7 +4,7 @@ case $- in
     *i*)
         printf '%s\n' \
             'This is a real Debian userland, with KDE Plasma, running as wasm32 in your browser on gex.' \
-            'apt works: apt install <package> downloads and installs it from the network.' \
+            'apt works: apt update once, then apt install <package> downloads and installs it from the network.' \
             ''
         ;;
 esac
