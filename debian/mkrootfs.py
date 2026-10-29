@@ -332,6 +332,11 @@ def configure(root, ours, native_pkgs, debian=None):
         if l not in seen:
             seen.append(l)
     w('etc/shells', '\n'.join(seen) + '\n')
+    # getent, where glibc's (libc-bin) is not in the tree: maintainer
+    # scripts ask it whether a user or group exists before making one
+    # (passwd's postinst fails without it), and it reads the files
+    if not os.path.lexists(os.path.join(root, 'usr/bin/getent')):
+        w('usr/bin/getent', open(os.path.join(HERE, 'getent.sh')).read(), 0o755)
     # base-files' postinst: /root's dot files, /etc/os-release is shipped
     for n in ('profile', 'bashrc'):
         src = os.path.join(root, f'usr/share/base-files/dot.{n}')
