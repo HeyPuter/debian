@@ -84,6 +84,8 @@
   summary:hover { color: var(--muted); }
   #log { height: 160px; overflow: auto; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
     background: #fafbfc; color: #3b3f45; font: 11.5px/1.45 ui-monospace, "Hack", Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .err.ok { border-color: var(--line); background: var(--soft); color: #3a4048; }
+  .again { margin-top: 14px; }
   .err { margin: 0; padding: 12px 14px; border: 1px solid #f3c2b8; border-radius: 10px; background: #fff4f1; color: #8f2f1c; font-size: 13.5px; line-height: 1.5; }
 
   /* the preview: a desktop in a window */
@@ -138,7 +140,7 @@
           <div class="track" id="track" role="progressbar" aria-label="Loading KDE Plasma" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
           <div class="meta"><span id="status">Downloading</span><span id="pct"></span></div>
         </div>
-        <div data-when="failed"><p class="err" id="err"></p></div>
+        <div data-when="failed"><p class="err" id="err"></p><button class="go again" id="again" type="button">Start again</button></div>
         <details data-when="busy failed" id="logbox"><summary>Startup log</summary><pre id="log"></pre></details>
       </div>
     </div>
@@ -267,10 +269,11 @@ function bar(frac) {
   $('track').setAttribute('aria-valuenow', String(pct));
   $('pct').textContent = `${pct}%`;
 }
-function fail(msg) {
+function fail(msg, ok) {
   globalThis.__kde.phase = 'exited';
   panel.dataset.phase = 'failed';
   $('err').textContent = msg;
+  $('err').classList.toggle('ok', !!ok);
   $('landing').classList.remove('gone');
 }
 
@@ -373,11 +376,15 @@ async function launch() {
   app.exited.then((s) => {
     clearInterval(watch);
     clearInterval(timer);
-    fail(`The session ended (${s}). Reload the page to start it again.`);
+    // status 0 is Plasma's own Log Out
+    if (s === 0) fail('You logged out of Plasma.', true);
+    else fail(`The session ended (${s}).`);
     globalThis.__kde.status = s;
   });
 }
 $('go').addEventListener('click', launch);
+// a new session starts from a fresh page
+$('again').addEventListener('click', () => location.reload());
 $('logbox').addEventListener('toggle', () => { if ($('logbox').open) { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; } });
 if (q.has('launch')) setTimeout(launch, Number(q.get('launch')) * 1000 || 0);
 </script>

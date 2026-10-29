@@ -47,6 +47,10 @@ if [ -n "$z" ] && [ -f "$zi/$z" ]; then
     unset TZ
 fi
 unset GEX_KDE_TZ
+# The usual folders in the home directory, as a desktop login's first run
+# makes them (xdg-user-dirs is not in the image): Dolphin's Places lists
+# them, and the file manager does not open on an empty home
+mkdir -p "$HOME/Documents" "$HOME/Downloads" "$HOME/Music" "$HOME/Pictures" "$HOME/Videos" 2>/dev/null
 # Two malloc arenas, not glibc's eight per CPU: each thread's arena reserves
 # 128 MiB of address space, and the guest has 2 GiB; plasmashell's thread
 # pools (a search in the launcher starts a dozen threads) ran it out, and its

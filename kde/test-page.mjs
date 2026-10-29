@@ -239,7 +239,7 @@ async function memPids() {
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
 // `wait S`, `click X,Y` (page pixels; negative from the right or
 // bottom), `type TEXT`, `key NAME` (a DOM key name: Enter, Escape,
-// Tab...), `hold CH N` (a key held for N repeats), `shot`, `profile`
+// Tab..., or Control+LETTER), `hold CH N` (a key held for N repeats), `shot`, `profile`
 // (every Worker's CPU profile from now, as KDE_PROFILE_AT takes). Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
@@ -288,6 +288,13 @@ async function step(st) {
       if (shift) await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 }, s);
       await new Promise((r) => setTimeout(r, 80));
     }
+  } else if (op === 'key' && /^Control\+[a-z]$/.test(arg)) {
+    // `key Control+s`: a letter with Control held
+    const ch = arg.slice(-1); const code = `Key${ch.toUpperCase()}`; const vk = ch.toUpperCase().charCodeAt(0);
+    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, modifiers: 2 }, s);
+    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: ch, code, windowsVirtualKeyCode: vk, modifiers: 2 }, s);
+    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code, windowsVirtualKeyCode: vk, modifiers: 2 }, s);
+    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17 }, s);
   } else if (op === 'key') {
     const vk = keyCodes[arg] ?? 0;
     await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: arg, code: arg, windowsVirtualKeyCode: vk, ...(arg === 'Enter' ? { text: '\r' } : {}) }, s);
