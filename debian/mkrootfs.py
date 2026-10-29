@@ -21,7 +21,7 @@ repository for arm64 only, ours (Origin gex) as a file: repository at
 /var/lib/gex-apt for musl-linux-wasm32, pinned so that apt never replaces
 one of ours with Debian's (docs/gexcc.md §6.1a).
 """
-import argparse, glob, gzip, hashlib, io, lzma, os, re, shutil, subprocess, sys, tarfile, tempfile
+import argparse, glob, gzip, hashlib, io, lzma, os, re, shlex, shutil, subprocess, sys, tarfile, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -306,6 +306,63 @@ def twins_from_suites(cache, ours):
     return out
 
 
+def sysusers(root):
+    """The system users and groups packages declare in sysusers.d (their
+    postinsts make them with systemd-sysusers or adduser): u, g and m lines,
+    a free id from 999 down where none is given, as systemd-sysusers does."""
+    pw_path, gr_path = os.path.join(root, 'etc/passwd'), os.path.join(root, 'etc/group')
+    pw = [l.rstrip('\n').split(':') for l in open(pw_path) if l.strip()]
+    gr = [l.rstrip('\n').split(':') for l in open(gr_path) if l.strip()]
+    used_u = {int(p[2]) for p in pw}
+    used_g = {int(g[2]) for g in gr}
+
+    def free(used):
+        i = 999
+        while i in used:
+            i -= 1
+        return i
+
+    def group(name, gid=None):
+        for g in gr:
+            if g[0] == name:
+                return int(g[2])
+        if gid is None or gid in used_g:
+            gid = free(used_g | used_u)
+        used_g.add(gid)
+        gr.append([name, 'x', str(gid), ''])
+        return gid
+
+    lines = []
+    for f in sorted(glob.glob(os.path.join(root, 'usr/lib/sysusers.d/*.conf'))):
+        lines += [shlex.split(l) for l in open(f) if l.strip() and not l.lstrip().startswith('#')]
+    # groups first, so a user's own group takes the gid a g line names
+    for t in lines:
+        if t[0] == 'g' and len(t) >= 2:
+            group(t[1], int(t[2]) if len(t) > 2 and t[2].isdigit() else None)
+    for t in lines:
+        if t[0] != 'u' or len(t) < 2 or any(p[0] == t[1] for p in pw):
+            continue
+        idf = t[2] if len(t) > 2 else '-'
+        uid, _, gname = idf.partition(':')
+        uid = int(uid) if uid.isdigit() and int(uid) not in used_u else None
+        if uid is None:
+            uid = free(used_u | used_g)
+        gid = int(gname) if gname.isdigit() else group(gname or t[1], uid)
+        used_u.add(uid)
+        gecos = t[3] if len(t) > 3 and t[3] != '-' else ''
+        home = t[4] if len(t) > 4 and t[4] != '-' else '/nonexistent'
+        shell = t[5] if len(t) > 5 and t[5] != '-' else '/usr/sbin/nologin'
+        pw.append([t[1], 'x', str(uid), str(gid), gecos, home, shell])
+    for t in lines:
+        if t[0] == 'm' and len(t) >= 3:
+            group(t[2])
+            for g in gr:
+                if g[0] == t[2] and t[1] not in g[3].split(','):
+                    g[3] = ','.join(filter(None, g[3].split(',') + [t[1]]))
+    open(pw_path, 'w').write(''.join(':'.join(p) + '\n' for p in pw))
+    open(gr_path, 'w').write(''.join(':'.join(g) + '\n' for g in gr))
+
+
 def configure(root, ours, native_pkgs, debian=None):
     """What maintainer scripts and debootstrap would have done."""
     def w(rel, text, mode=0o644):
@@ -318,6 +375,7 @@ def configure(root, ours, native_pkgs, debian=None):
     pw = os.path.join(root, 'usr/share/base-passwd')
     shutil.copy(os.path.join(pw, 'passwd.master'), os.path.join(root, 'etc/passwd'))
     shutil.copy(os.path.join(pw, 'group.master'), os.path.join(root, 'etc/group'))
+    sysusers(root)
     users = [l.split(':')[0] for l in open(os.path.join(root, 'etc/passwd'))]
     groups = [l.split(':')[0] for l in open(os.path.join(root, 'etc/group'))]
     w('etc/shadow', ''.join(f'{u}:*:20000:0:99999:7:::\n' for u in users), 0o640)

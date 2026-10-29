@@ -1,0 +1,4 @@
+# Our wasm32 packages' repository. The host that boots the image writes
+# this file with the repository's URL; the repository is not signed:
+#
+#   deb [trusted=yes arch=musl-linux-wasm32,arm64] http://HOST/ trixie main

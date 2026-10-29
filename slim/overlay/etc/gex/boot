@@ -1,0 +1,9 @@
+#!/bin/sh
+# Run once at boot by the runtime's init (pid 1), as root, before it starts
+# any program; it waits for this to exit. The image's services: the D-Bus
+# system bus (as root, /etc/gex/dbus-system.conf: build-wasm32.sh).
+mkdir -p /run/dbus
+dbus-uuidgen --ensure=/etc/machine-id
+[ -e /var/lib/dbus/machine-id ] || ln -sf /etc/machine-id /var/lib/dbus/machine-id
+dbus-daemon --config-file=/etc/gex/dbus-system.conf --fork
+exit 0

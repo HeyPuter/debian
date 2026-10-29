@@ -1,0 +1,49 @@
+# The slim image's roots (build-wasm32.sh): a Debian base with apt and
+# D-Bus, for programs a runtime starts in it; nothing of a desktop. No
+# init: pid 1 is the runtime's, which runs /etc/gex/boot once.
+# Each root's closure comes from our wasm32 pool, Debian's arm64 packages
+# only for what ours do not have.
+#
+# the base system (Essential and Priority: required, as debootstrap's
+# minbase has them)
+bash
+dash
+coreutils
+sed
+grep
+findutils
+diffutils
+tar
+gzip
+xz-utils
+util-linux
+mawk
+hostname
+debianutils
+bsdutils
+ncurses-bin
+procps
+less
+sysvinit-utils
+# D-Bus: the system bus (dbus) and the session bus's launcher
+dbus
+dbus-bin
+# X clients' basics (the X server is the runtime's own, which takes nothing
+# from the tree): the client libraries, the keymaps for a client that
+# compiles its own (libxkbcommon), fonts through fontconfig, a cursor theme
+libx11-6
+libxcb1
+libxau6
+libxdmcp6
+libxext6
+libxrender1
+libxi6
+libxrandr2
+libxfixes3
+libxcursor1
+xkb-data
+fontconfig
+fonts-dejavu-core
+dmz-cursor-theme
+# time zones (the visitor's, as the KDE image sets it)
+tzdata

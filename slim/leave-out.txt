@@ -1,0 +1,13 @@
+# Packages the slim image leaves out in both forms (mkrootfs.py --leave-out),
+# as kde/leave-out.txt: PACKAGE | why | what is lost
+#
+# glibc's tools: our programs are on musl, whose loader keeps no cache
+libc-bin       | Debian's is glibc's arm64 ldconfig, getent, locale and iconv, and pulls glibc itself (libc6, libgcc-s1); musl's loader reads no ld.so.cache | the locale, iconv and getconf commands (getent is a script over the files, mkrootfs.py); a library apt installs later runs no ldconfig (nothing needs one)
+# not built for wasm32 yet: what names them is installed, so apt sees an
+# image whose every Depends is met (it refuses any install otherwise)
+python3.13           | not built for wasm32 yet | python3 (the python3 packages are only what the image's tools name)
+python3.13-minimal   | as above | as above
+libpython3.13-stdlib | as above | as above
+python3              | as above: ours without python3.13 is no interpreter, and held it would keep Debian's arm64 python3 out | nothing (Debian's arm64 python3 installs when something asks for it)
+python3-minimal      | as above | as above
+libpython3-stdlib    | as above | as above
