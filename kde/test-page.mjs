@@ -397,6 +397,16 @@ for (;;) {
   if (now - t0 > WALL) { log(`FAIL wall of ${WALL / 1000} s`); break; }
 }
 await shot();
+// and KDE_OPENED.end: the files used by the end of the run (the input's
+// programs too), with the whole session output
+if (process.env.KDE_OPENED) {
+  const o = await ev('globalThis.__ntOpened ? __ntOpened().then((p) => JSON.stringify(p), (e) => JSON.stringify({ error: String(e) })) : "null"').catch((e) => JSON.stringify({ error: String(e) }));
+  const paths = JSON.parse(o ?? 'null');
+  if (Array.isArray(paths)) writeFileSync(`${process.env.KDE_OPENED}.end`, paths.join('\n') + '\n');
+  log(`opened by the end: ${Array.isArray(paths) ? paths.length : JSON.stringify(paths)}`);
+  const all = await ev('globalThis.__kde?.out ?? ""').catch(() => null);
+  if (all) writeFileSync(join(OUT, 'session-full.txt'), all);
+}
 const heap = await ev('performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : -1').catch(() => -1);
 log(`end: ready ${readyAt ? `${await ev('globalThis.__kde.readyMs')} ms` : 'never'}; served ${served} bytes; browser peak ${peak} MiB resident; page JS heap ${heap} MiB`);
 process.exit(readyAt && !sycoca ? 0 : 1);

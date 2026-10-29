@@ -28,3 +28,26 @@ path-exclude=/usr/share/sounds/Oxygen-*
 # session is started from pid 1)
 path-exclude=/usr/bin/kwin_wayland
 path-exclude=/usr/lib/systemd/systemd-*
+# and systemd itself with its generators and command-line tools, which talk
+# to a running systemd. sysusers and tmpfiles stay (packages' maintainer
+# scripts run them). No library is left out this way: a package apt
+# installs later could need it, so a library goes with its whole package
+# (leave-out) or stays
+path-exclude=/usr/lib/systemd/systemd
+path-exclude=/usr/lib/systemd/system-generators/*
+path-exclude=/usr/lib/systemd/user-generators/*
+path-exclude=/usr/lib/systemd/user-environment-generators/*
+path-exclude=/usr/bin/systemd-*
+path-include=/usr/bin/systemd-sysusers
+path-include=/usr/bin/systemd-tmpfiles
+path-exclude=/usr/bin/busctl
+path-exclude=/usr/bin/hostnamectl
+path-exclude=/usr/bin/journalctl
+path-exclude=/usr/bin/kernel-install
+path-exclude=/usr/bin/localectl
+path-exclude=/usr/bin/loginctl
+path-exclude=/usr/bin/networkctl
+path-exclude=/usr/bin/systemctl
+path-exclude=/usr/bin/timedatectl
+path-exclude=/usr/bin/varlinkctl
+path-exclude=/usr/bin/kde-systemd-start-condition
