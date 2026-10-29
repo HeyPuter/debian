@@ -1,23 +1,9 @@
-# What apt in the KDE image says about a package (debian/apt-notes.sh, the
-# wrapper mkrootfs.py puts in front of apt and apt-get):
+# What apt says, in the KDE image, of a package an install brings in
+# (apt hooks: debian/apt-note.sh, which mkrootfs.py installs):
 #
-#   PACKAGE  pending | WHY | THE FIX THAT IS COMING
-#       an install of PACKAGE fails until the fix lands, and apt says so
 #   PACKAGE  runtime | WHY | WHAT TO USE
-#       PACKAGE installs, and is known not to run
+#       PACKAGE installs, and is known not to run here; said once dpkg is done
 #
-# arm64 Perl XS modules (perlapi) need Debian's arm64 perl, which the image's
-# own (musl-linux-wasm32) perl stands in for
-git               pending | its arm64 build needs Debian's arm64 perl, and the image's perl is ours | wasm32 builds of the Perl modules it needs
-libreoffice-writer pending | its arm64 build pulls arm64 Perl modules (libtext-charwidth-perl), which need Debian's arm64 perl | wasm32 builds of those Perl modules
-inkscape          pending | its arm64 build pulls arm64 Perl modules, which need Debian's arm64 perl | wasm32 builds of those Perl modules
-# KDE applications: their arm64 builds need arm64 kio6 and KDE plugins, which
-# have the names of the desktop's own (wasm32) packages
-okular            pending | its arm64 build needs arm64 kio6, and the desktop's kio6 is wasm32 | a wasm32 build of okular
-ark               pending | as okular | a wasm32 build of ark
-kdenlive          pending | as okular | a wasm32 build of kdenlive
-gwenview          pending | its arm64 build needs arm64 kio6 and kimageformat6-plugins, and the desktop's are wasm32 | a wasm32 build of gwenview
-elisa             pending | its arm64 build needs arm64 kio6 and KDE QML modules, and the desktop's are wasm32 | a wasm32 build of elisa
 # installs, does not run
 chromium          runtime | Debian's arm64 Chromium asks for a 4 GiB address-space reservation (its V8 and PartitionAlloc cage), which the 32-bit guest arena cannot give | the wasm32 Chromium build
 # Go: its linker places a program at 0x10000, inside gex's runtime region
@@ -26,3 +12,4 @@ chromium          runtime | Debian's arm64 Chromium asks for a 4 GiB address-spa
 golang-go         runtime | Go's linker places programs at 0x10000, below gex's runtime region, and they carry no relocations to move them | no replacement yet
 golang            runtime | as golang-go | no replacement yet
 golang-1.24-go    runtime | as golang-go | no replacement yet
+

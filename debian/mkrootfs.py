@@ -243,24 +243,23 @@ def write_repo(root, debs, repo=None):
 
 
 def apt_notes(root, notes):
-    """apt and apt-get diverted (dpkg-divert's database, locally) to
-    /usr/lib/gex/NAME.real, apt-notes.sh in their place, NOTES its list"""
-    div = []
-    for name in ('apt', 'apt-get'):
-        src = os.path.join(root, 'usr/bin', name)
-        if not os.path.exists(src):
-            continue
-        dst = f'/usr/lib/gex/{name}.real'
-        os.makedirs(os.path.join(root, 'usr/lib/gex'), exist_ok=True)
-        os.rename(src, root + dst)
-        shutil.copy(os.path.join(HERE, 'apt-notes.sh'), src)
-        os.chmod(src, 0o755)
-        div += [f'/usr/bin/{name}', dst, ':']
-    p = os.path.join(root, 'var/lib/dpkg/diversions')
-    old = open(p).read().split('\n') if os.path.exists(p) else []
-    open(p, 'w').write('\n'.join([x for x in old if x] + div) + '\n')
+    """apt's hooks (/etc/apt/apt.conf.d/99gex-notes, after 99gex, which clears
+    debconf's Pre-Install-Pkgs hook; debian/apt-note.sh) for
+    NOTES, what the image knows of a package an install brings in: one
+    known not to run here is said so once dpkg is done. apt and apt-get are
+    Debian's own."""
     os.makedirs(os.path.join(root, 'usr/share/gex'), exist_ok=True)
     shutil.copy(notes, os.path.join(root, 'usr/share/gex/apt-notes'))
+    hook = '/usr/lib/gex/apt-note'
+    os.makedirs(os.path.join(root, 'usr/lib/gex'), exist_ok=True)
+    shutil.copy(os.path.join(HERE, 'apt-note.sh'), root + hook)
+    os.chmod(root + hook, 0o755)
+    open(os.path.join(root, 'etc/apt/apt.conf.d/99gex-notes'), 'w').write(
+        '// What the image knows of a package an install brings in (/usr/share/gex/apt-notes):\n'
+        '// the packages being installed, seen before dpkg runs, and their notes said after\n'
+        f'DPkg::Pre-Install-Pkgs {{ "{hook} --record"; }};\n'
+        f'DPkg::Tools::Options::{hook}::Version "3";\n'
+        f'DPkg::Post-Invoke {{ "{hook} --say"; }};\n')
 
 
 def installable_ours(ours, pkgs, provides):
@@ -630,7 +629,7 @@ def main():
     ap.add_argument('--repo-debs', action='store_true',
                     help="offer apt every one of ours, their .debs copied into the image's repository (otherwise only the image's own)")
     ap.add_argument('--apt-notes', default='',
-                    help="what apt says of a package an install names (apt-notes.sh): apt and apt-get are diverted to it")
+                    help="what apt says of a package an install brings in (apt hooks, apt-note.sh)")
     ap.add_argument('--native-ours', action='store_true',
                     help="dpkg's and apt's own architecture is ours (musl-linux-wasm32), Debian's the foreign one")
     ap.add_argument('--arch', default='arm64',
