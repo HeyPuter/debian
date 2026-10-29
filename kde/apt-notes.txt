@@ -13,3 +13,20 @@ golang-go         runtime | Go's linker places programs at 0x10000, below gex's 
 golang            runtime | as golang-go | no replacement yet
 golang-1.24-go    runtime | as golang-go | no replacement yet
 
+
+# does not install: apt refuses before dpkg runs, so no hook says anything.
+# The next wasm32 package builds (checked with apt install in the image):
+#
+# git: the repo has no git of ours, so apt takes Debian's git:arm64, whose
+#   Depends on perl means perl:arm64; that needs perl-base:arm64, and the
+#   image's perl-base is ours (Essential, held). Build our git into the
+#   repo (debian/recipes.sh has build_git, NO_PERL): its perl Depends is
+#   then met by our perl (in the repo, installs), and liberror-perl and
+#   git-man are Debian's arch-all packages (both install).
+# cowsay (and any package with an arm64 XS module, libtext-charwidth-perl
+#   here): Debian's module Depends on perl-base:arm64 and perlapi-5.40.0,
+#   which our perl does not provide; it could not load one anyway (no
+#   dynamic loading, XS extensions are static in the binary). Build
+#   Text::CharWidth into our perl and have perl Provide
+#   libtext-charwidth-perl, or give our perl dynamic loading and a
+#   perlapi-5.40.1 for wasm32 XS modules of ours.
