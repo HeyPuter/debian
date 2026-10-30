@@ -45,6 +45,12 @@ const server = createServer((req, res) => {
   if (/^\/units\/[0-9a-f]{64}\//.test(new URL(req.url, 'http://x').pathname)) h['Cache-Control'] = 'public, max-age=31536000, immutable';
   const f = existsSync(p) && statSync(p).isDirectory() ? join(p, 'index.html') : p;
   if (!f.startsWith(SITE) || !existsSync(f) || !statSync(f).isFile()) return res.writeHead(404, h).end();
+  // KDE_BLOCK=REGEX: requests whose path matches are refused (404) and
+  // logged, a site's rest bundle say: what a session needs of it shows
+  if (process.env.KDE_BLOCK && new RegExp(process.env.KDE_BLOCK).test(f.slice(SITE.length))) {
+    log(`blocked: ${f.slice(SITE.length)} ${req.headers.range || ''}`);
+    return res.writeHead(404, h).end();
+  }
   const whole = statSync(f).size;
   // A range (the rest bundle's frames are read so): those bytes, 206.
   const r = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');

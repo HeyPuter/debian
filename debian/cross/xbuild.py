@@ -63,7 +63,7 @@ def load_cuts(path=os.path.join(HERE, 'cuts.txt')):
             continue
         src, kind, what = line.split(None, 2)  # a make value may have spaces
         what = what.strip()
-        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set(), 'suite': set(), 'keep': set()})
+        c = out.setdefault(src, {'cut': set(), 'drop': set(), 'cmake': [], 'meson': [], 'env': [], 'profile': set(), 'patch': set(), 'exclude': set(), 'make': [], 'autoconf': [], 'headers': set(), 'arch': set(), 'suite': set(), 'keep': set(), 'version': set()})
         if kind == 'profile':
             c['profile'].add(what)
         elif kind in ('env', 'meson', 'make', 'autoconf'):
@@ -452,23 +452,29 @@ class Builder:
 
     def mark_binnmu(self, srcdir, name, ver):
         """debian/changelog with the binNMU entry Debian's arm64 build has
-        (none if it has none), from the source's own changelog each time"""
+        (none if it has none), from the source's own changelog each time,
+        and cuts.txt's `version SUFFIX` after it: the binaries' version
+        suffix (`+b2`, `+gex1`, `+b2+gex1` or empty)"""
         ch = os.path.join(srcdir, 'debian', 'changelog')
         orig = ch + '.source'
         if not os.path.exists(orig):
             shutil.copy(ch, orig)
         text = open(orig).read()
         n = self.binnmu_of(name, ver)
-        if n:
+        own = next(iter(CUTS.get(name, {}).get('version', ())), '')
+        suffix = (f'+b{n}' if n else '') + own
+        if suffix:
             dist = re.match(r'\S+ \(\S+\) (\S+);', text).group(1)
             # (the source entry's date: it is the build's SOURCE_DATE_EPOCH)
             date = re.search(r'(?m)^ -- .*?>  (.+)$', text).group(1)
-            text = (f'{name} ({ver}+b{n}) {dist}; urgency=low, binary-only=yes\n\n'
-                    f'  * Binary-only non-maintainer upload for {ARCH}; no source changes.\n'
-                    f'  * The version of Debian\'s arm64 binNMU.\n\n'
+            why = ("  * The version of Debian's arm64 binNMU.\n" if n else '') + \
+                  (f'  * {own}: binaries that differ from Debian\'s build of this version (cuts.txt).\n' if own else '')
+            text = (f'{name} ({ver}{suffix}) {dist}; urgency=low, binary-only=yes\n\n'
+                    f'  * Binary-only non-maintainer upload for {ARCH}.\n'
+                    f'{why}\n'
                     f' -- gex <gex@localhost>  {date}\n\n') + text
         open(ch, 'w').write(text)
-        return n
+        return suffix
 
     def source_of(self, binary):
         p = self.debian.get(binary)
@@ -777,7 +783,7 @@ class Builder:
         # (only this source's binaries: another source of the same version
         # may be building beside it, in the same directory)
         mine = set(re.findall(r'(?m)^Package: *(\S+)', open(os.path.join(srcdir, 'debian', 'control')).read()))
-        debs = {d for d in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}{f"+b{binnmu}" if binnmu else ""}_*.deb'))
+        debs = {d for d in glob.glob(os.path.join(parent, f'*_{ver.split(":")[-1]}{binnmu}_*.deb'))
                 if os.path.basename(d).split('_')[0] in mine}
         for ch in glob.glob(os.path.join(parent, f'{name}_*.changes')):
             debs |= {os.path.join(parent, m) for m in re.findall(r'(?m)^ [0-9a-f]{64} \d+ (\S+\.deb)$', open(ch).read())

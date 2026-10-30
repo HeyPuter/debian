@@ -30,6 +30,9 @@
 #                        applies it); only where packaging cannot do it
 #   SOURCE  suite S      SOURCE's package comes from Debian's suite S (a later
 #                        release that has the port) instead of trixie
+#   SOURCE  version SUF  SOURCE's binaries are version VERSION+SUF (after a
+#                        binNMU's +bN): what differs from Debian's build of
+#                        the same version gets a version of its own
 #   SOURCE  headers BIN  SOURCE is not built: its binary package BIN, Debian's
 #                        own build-machine deb, is repacked for the target
 #                        (refused if it holds anything compiled); a source
@@ -290,6 +293,7 @@ cyrus-sasl2 profile pkg.cyrus-sasl2.nosql | the SQL auxprop plugin pulls MariaDB
 icu       make PKGDATA_OPTS=-O $$(firstword $$(wildcard pkgdata.inc) $$(top_builddir)/data/icupkg.inc) -w | with no assembly type pkgdata writes an object file by copying the build machine's ELF header (genccode's match-arch), which gexcc's wasm objects are not; -w (--without-assembly) has it write the data as C, which ICU supports on every compiler. -O is each directory's own flags file (uconv's message library has pkgdata.inc, the data icupkg.inc), $$ so the rules' make passes it on unexpanded | nothing (the same data, compiled from C)
 icu       patch 0001-data-filter-hook.patch | a hook, ICU_DATA_FILTER, for the list of data items the build packs from Debian's prebuilt archive: ICU filters its data only when it builds it from CLDR sources, which Debian's source does not ship | nothing (unset, the build is as before)
 icu       env ICU_DATA_FILTER=@CROSS@/icu/data-filter.sh | libicudata is 31.9 MB, more than half of it the 900 locales' own names, currencies, units, zone names, spell-outs and collation tailorings, which nothing reads in the image's C.UTF-8 session (Qt formats from its own CLDR data); the filter keeps the root and English locales and all of the rest | the other locales' ICU data: an ICU user asked for one of them gets the root's (English names, the root collation order); RUNTIME: none in the session (13.9 MB left, 5.4 MB compressed against 10.2 MB)
+icu       version +gex1                 | the filtered libicu76 is not Debian's libicu76 76.1-4: a deb of the same version with other contents would pass for it in apt's caches and indexes | nothing
 # libselinux, then everything built with SELinux: libselinux's restorecon needs fts.h, which musl does not have (glibc's own); gex has no SELinux, so the libraries are built without it
 util-linux cut libselinux1-dev           | libselinux needs fts (glibc's, not in musl) | none (gex has no SELinux: SELinux contexts in mount, ls -Z and the like)
 util-linux autoconf with_selinux=no      | debian/rules passes --with-selinux | as above
