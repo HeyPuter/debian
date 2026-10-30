@@ -448,22 +448,22 @@ class Builder:
         """Debian's arm64 binNMU of SOURCE VER (its `+bN`), or None: our
         Multi-Arch: same libraries are installed beside Debian's arm64 builds
         of them (for arm64 programs), and the two must have one version."""
-        # trixie's arm64 index: a binNMU is of trixie's version (a source
-        # from trixie-security has none), cached per suite
-        suite = suite_of(name)
+        # trixie's arm64 index and the source's own suite's: a source named
+        # in trixie-security may still be built at trixie's version, whose
+        # arm64 build can be a binNMU (cached per suite)
         if self.arm64 is None:
             self.arm64 = {}
-        if suite not in self.arm64:
-            self.arm64[suite], _ = debfetch.packages(self.cache, suite, 'arm64')
         best = 0
-        for p in self.arm64[suite].values():
-            src = p.get('Source', '')
-            m = re.fullmatch(r'(\S+) \((\S+)\)', src)
-            if not m or m.group(1) != name or m.group(2) != ver:
-                continue
-            b = re.fullmatch(re.escape(ver) + r'\+b(\d+)', p['Version'])
-            if b:
-                best = max(best, int(b.group(1)))
+        for suite in sorted({'trixie', suite_of(name)}):
+            if suite not in self.arm64:
+                self.arm64[suite], _ = debfetch.packages(self.cache, suite, 'arm64')
+            for p in self.arm64[suite].values():
+                m = re.fullmatch(r'(\S+) \((\S+)\)', p.get('Source', ''))
+                if not m or m.group(1) != name or m.group(2) != ver:
+                    continue
+                b = re.fullmatch(re.escape(ver) + r'\+b(\d+)', p['Version'])
+                if b:
+                    best = max(best, int(b.group(1)))
         return best or None
 
     def mark_binnmu(self, srcdir, name, ver):
