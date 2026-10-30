@@ -1,0 +1,32 @@
+Create.c registers _XtResourceConfigurationEH as an XtEventHandler
+through a cast, and XtDispatchEventToWidget calls it with an event
+handler's four arguments; it takes three. wasm checks an indirect call's
+type, so every Xt program trapped at its shell's first PropertyNotify.
+The handler takes the fourth argument, unused.
+
+diff -ru a/include/X11/ResConfigP.h b/include/X11/ResConfigP.h
+--- a/include/X11/ResConfigP.h	2026-10-30 11:31:08.824159361 -0400
++++ b/include/X11/ResConfigP.h	2026-10-30 11:31:08.851159410 -0400
+@@ -68,7 +68,8 @@
+ extern void _XtResourceConfigurationEH(
+ 	Widget 		/* w */,
+ 	XtPointer 	/* client_data */,
+-	XEvent * 	/* event */
++	XEvent * 	/* event */,
++	Boolean * 	/* continue_to_dispatch */
+ );
+ 
+ _XFUNCPROTOEND
+diff -ru a/src/ResConfig.c b/src/ResConfig.c
+--- a/src/ResConfig.c	2026-10-30 11:31:08.821159355 -0400
++++ b/src/ResConfig.c	2026-10-30 11:31:08.851159410 -0400
+@@ -878,7 +878,8 @@
+ void
+ _XtResourceConfigurationEH(Widget w,
+                            XtPointer client_data _X_UNUSED,
+-                           XEvent *event)
++                           XEvent *event,
++                           Boolean *continue_to_dispatch _X_UNUSED)
+ {
+     Atom actual_type;
+     int actual_format;

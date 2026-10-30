@@ -129,6 +129,12 @@ harfbuzz  meson cairo=disabled            | debian/rules passes -Dauto_features=
 # Source patches: two, both where the wasm32 port itself is missing
 libffi    patch 0001-wasm32-backend.patch      | a missing port: libffi's wasm32 backend is emscripten's (calls through JavaScript); the patch puts in gexcc's plain-C backend, debdemo's debian/libffi-wasm32 (ffi.c, and tramp.inc from its gen.py), from gex's tools/gexcc/debian | nothing; without it there is no libffi (wayland, glib)
 glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function whose address is taken becomes a GOT.func import gex's loader cannot satisfy | nothing (LeakSanitizer hooks); the loader taking weak imports as null would replace it
+
+# Source patches where C calls a function through a pointer of another type
+# (wasm checks an indirect call's type and traps)
+libxt     patch 0001-resconfig-eh-four-args.patch | Create.c registers the three-argument _XtResourceConfigurationEH as a four-argument XtEventHandler: every Xt program trapped at its shell's first PropertyNotify | nothing (the handler takes the fourth argument, unused)
+x11-utils patch 0001-xfontsel-free-font-names-work-piece.patch | xfontsel schedules XFreeFontNames (it returns an int) as a void work piece | nothing (a void work piece calls it)
+
 libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)
 icu       make GENCCODE_ASSEMBLY=        | configure picks genccode's `-a gcc` for any *-linux* gcc: ELF assembly (.type x,%object), which the wasm assembler does not take; without it pkgdata writes the data as C | nothing (the same data, compiled from C)
 openssl   env OPENSSL_LOCAL_CONFIG_DIR=@CROSS@/openssl | debian/rules configures the target debian-$(DEB_HOST_ARCH), which Debian's 20-debian.conf has only for its own architectures; openssl/50-wasm32.conf adds debian-musl-linux-wasm32 (linux-generic32, no assembly) | nothing (generic C instead of assembly: slower crypto)

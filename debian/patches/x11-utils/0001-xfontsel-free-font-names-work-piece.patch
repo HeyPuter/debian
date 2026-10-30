@@ -1,0 +1,29 @@
+xfontsel schedules XFreeFontNames, which returns an int, as a work piece
+of type void (*)(XtPointer). wasm checks an indirect call's type, so
+the call traps; a work piece of the work piece's type calls it instead.
+
+diff -ru a/xfontsel/xfontsel.c b/xfontsel/xfontsel.c
+--- a/xfontsel/xfontsel.c	2026-10-30 11:31:26.142190908 -0400
++++ b/xfontsel/xfontsel.c	2026-10-30 11:31:32.685202827 -0400
+@@ -529,6 +529,12 @@
+ };
+ 
+ 
++/* XFreeFontNames returns an int; a work piece returns nothing */
++static void FreeFontNames(XtPointer closure)
++{
++    XFreeFontNames((char **)closure);
++}
++
+ void GetFontNames(XtPointer closure)
+ {
+     Widget topLevel = (Widget)closure;
+@@ -583,7 +589,7 @@
+     }
+     parseRec->end = numFonts;
+     ScheduleWork(ParseFontNames,(XtPointer)parseRec,work_priority);
+-    ScheduleWork((XtProc)XFreeFontNames,(XtPointer)fontNames,work_priority);
++    ScheduleWork(FreeFontNames,(XtPointer)fontNames,work_priority);
+     ScheduleWork((XtProc)XtFree, (XtPointer)parseRec, work_priority);
+     if (AppRes.scaled_fonts)
+ 	ScheduleWork(FixScalables,(XtPointer)topLevel, work_priority);
