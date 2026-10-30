@@ -24,8 +24,8 @@ server: the runtime brings pid 1 and the X server.
 
 ## Boot
 
-The runtime's pid 1 runs `/etc/gex/boot` once, as root, before it starts any
-program, and waits for it to exit. It starts the D-Bus system bus
+The page runs `/etc/gex/boot` once (`System.spawn`), as root, before its
+other programs. It starts the D-Bus system bus
 (`/etc/gex/dbus-system.conf`: Debian's configuration, run as root).
 
 ## apt
