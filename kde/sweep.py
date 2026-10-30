@@ -4,11 +4,12 @@ opens first, used once each. Its runs are both the release check (their
 screenshots and session output) and the first bundle's file list (each run's
 KDE_OPENED list; kde/coverage.sh).
 
-    sweep.py kcm|apps
+    sweep.py kcm [FIRST]|apps
 
 kcm: Konsole, then every System Settings module in turn in one
 systemsettings (switched by `systemsettings MODULE`), each module's title
-and output in the session's output as `rs:` lines.
+and output in the session's output as `rs:` lines
+(from module FIRST on, if given).
 apps: Kate (typing, its save and open dialogs), Dolphin, the launcher's
 search, the tray's applets and calendar, show desktop, the emoji selector
 and KRunner, then the launcher's Lock (refused: kdeglobals) and logout.
@@ -42,9 +43,10 @@ def bus_run(script, wait):
             f"dbus-send --session --type=method_call --dest=org.kp.rs / org.kp.rs.Go;key Enter;wait {wait};shot")
 
 
-def kcm():
+def kcm(first=None):
+    kcms = KCMS[KCMS.index(first):] if first else KCMS
     s = TITLE + f'''first=1
-for k in {' '.join(KCMS)}; do
+for k in {' '.join(kcms)}; do
   echo "rs: == $k"
   systemsettings $k 2>&1 | sed "s/^/rs: [$k] /" &
   if [ $first = 1 ]; then sleep 90; first=0; else sleep 22; fi
@@ -53,7 +55,9 @@ done
 pkill -x systemsettings
 echo "rs: done"
 '''
-    return f"wait 20;{KONSOLE};" + bus_run(s, 90 + 22 * len(KCMS) + 30)
+    # a module's turn takes about 33 s in all (its 22 s, the window's title
+    # and the next one's start)
+    return f"wait 20;{KONSOLE};" + bus_run(s, 90 + 36 * len(kcms) + 30)
 
 
 def apps():
@@ -68,7 +72,7 @@ def apps():
 done
 echo "rs: done"
 '''
-    tray = ';'.join(f'click {x},-28;wait 15;shot;key Escape;wait 5' for x in (1078, 1108, 1137, 1190))
+    tray = ';'.join(f'click {x},-28;wait 15;shot;key Escape;wait 5' for x in (1108, 1137, 1190))
     return ';'.join([
         'wait 20;shot',
         # Kate: a new file, typed, saved (the save dialog), the open dialog
@@ -86,4 +90,4 @@ echo "rs: done"
 
 
 if __name__ == '__main__':
-    print({'kcm': kcm, 'apps': apps}[sys.argv[1]]())
+    print({'kcm': kcm, 'apps': apps}[sys.argv[1]](*sys.argv[2:]))

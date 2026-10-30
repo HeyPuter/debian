@@ -25,10 +25,13 @@
 # under OUT/apt/, which the page answers the guest's http://gex-site/ from
 # (site.json pageHosts): fetched only when apt asks for a file.
 #
-# OPENED=FILE: two bundles (kde/bundles.py), not one: OUT/kde.tar only what
-# a recorded session used up to its desktop (FILE, test-page.mjs
-# KDE_OPENED), in the order it did, with kde/boot-files.txt's paths, and
-# every other file in the rest bundle
+# OPENED=FILE: two bundles (kde/bundles.py), not one: OUT/kde.tar only
+# FILE's files, in its order, with kde/boot-files.txt's paths, and every
+# other file in the rest bundle. FILE is kde/first-bundle.txt: what the
+# desktop and the apps a visitor opens first (Konsole, System Settings and
+# every module, Kate, Dolphin, the launcher, KRunner, the tray, logout, file
+# dialogs) used in the release sweep (kde/coverage.sh regenerates it), so
+# they never wait on the rest bundle
 # (OUT/rest.bin, read by Range as the guest reads); kde/trim.txt's paths in
 # neither, unless the session used them.
 #
