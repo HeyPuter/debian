@@ -1,0 +1,13 @@
+ICU_DATA_FILTER: a program that rewrites the list of data items the build
+packs into libicudata, after it is unpacked from the prebuilt archive.
+
+--- a/source/data/Makefile.in	2026-10-29 20:55:14.690324304 -0400
++++ b/source/data/Makefile.in	2026-10-29 20:55:14.718324352 -0400
+@@ -239,6 +239,7 @@
+ 	@echo "Unpacking $(ICUDATA_SOURCE_ARCHIVE) and generating $@ (list of data files)"
+ 	@-$(RMV) $@
+ 	$(INVOKE) $(TOOLBINDIR)/icupkg -d $(BUILDDIR) --list -x \* $(ICUDATA_SOURCE_ARCHIVE) -o $@
++	$(if $(ICU_DATA_FILTER),$(ICU_DATA_FILTER) $@)
+ else
+ 	@echo "$@" > $@
+ endif
