@@ -1,0 +1,5 @@
+# No screen locking: root has no password in the page, so a locked screen
+# could never be unlocked (the launcher's Lock, the shortcut, the logout
+# screen's button)
+[KDE Action Restrictions][$i]
+action/lock_screen=false
