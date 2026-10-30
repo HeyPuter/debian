@@ -89,10 +89,20 @@ def add_arch(control, binaries):
     open(control, 'w').write('\n\n'.join(stanzas))
 
 
+SECURITY_SOURCES = set()
+
+
 def suite_of(src):
     """cuts.txt's `suite S`: SOURCE comes from Debian's suite S, not
-    trixie (a later release that has the port)."""
-    return next(iter(CUTS.get(src, {}).get('suite', ())), 'trixie')
+    trixie (a later release that has the port); otherwise trixie-security
+    for a source with a security update there, so that our build has the
+    fix and the version Debian's arm64 build has (our Multi-Arch: same
+    libraries are installed beside Debian's at one version); else trixie."""
+    own = next(iter(CUTS.get(src, {}).get('suite', ())), None)
+    if own:
+        return own
+    return 'trixie-security' if src in SECURITY_SOURCES else 'trixie'
+
 
 
 def profiles_of(src):
@@ -424,6 +434,7 @@ class Builder:
             os.makedirs(os.path.join(self.work, d), exist_ok=True)
         self.sysroot = os.path.join(a.prefix, 'sysroot')
         self.debian, _ = debfetch.packages(self.cache, 'trixie', 'amd64')
+        SECURITY_SOURCES.update(st['Package'] for st in debfetch.stanzas(debfetch.index(self.cache, 'trixie-security', 'source')))
         self.arm64 = None
         self.chroot_has = installed(a.chroot)
         self.unpacked = set()
@@ -437,10 +448,15 @@ class Builder:
         """Debian's arm64 binNMU of SOURCE VER (its `+bN`), or None: our
         Multi-Arch: same libraries are installed beside Debian's arm64 builds
         of them (for arm64 programs), and the two must have one version."""
+        # trixie's arm64 index: a binNMU is of trixie's version (a source
+        # from trixie-security has none), cached per suite
+        suite = suite_of(name)
         if self.arm64 is None:
-            self.arm64, _ = debfetch.packages(self.cache, suite_of(name), 'arm64')
+            self.arm64 = {}
+        if suite not in self.arm64:
+            self.arm64[suite], _ = debfetch.packages(self.cache, suite, 'arm64')
         best = 0
-        for p in self.arm64.values():
+        for p in self.arm64[suite].values():
             src = p.get('Source', '')
             m = re.fullmatch(r'(\S+) \((\S+)\)', src)
             if not m or m.group(1) != name or m.group(2) != ver:
@@ -462,6 +478,9 @@ class Builder:
         text = open(orig).read()
         n = self.binnmu_of(name, ver)
         own = next(iter(CUTS.get(name, {}).get('version', ())), '')
+        if own and re.search(r'(?mi)^Multi-Arch:\s*same\s*$', open(os.path.join(srcdir, 'debian', 'control')).read()):
+            raise SystemExit(f'{name}: cuts.txt `version {own}` on a source with a Multi-Arch: same binary; '
+                             'its arm64 copy could not be installed beside ours')
         suffix = (f'+b{n}' if n else '') + own
         if suffix:
             dist = re.match(r'\S+ \(\S+\) (\S+);', text).group(1)

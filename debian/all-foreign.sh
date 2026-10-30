@@ -27,7 +27,7 @@ S=$R/var/lib/dpkg/status
 W=$R/var/lib/gex
 mkdir -p "$W"
 debian=$(ls "$L"/*_binary-arm64_Packages 2>/dev/null)
-ours=$(ls "$L"/*gex-apt*_binary-musl-linux-wasm32_Packages 2>/dev/null)
+ours=$(ls "$L"/*_binary-musl-linux-wasm32_Packages 2>/dev/null)  # our repository, wherever it is served
 # names: `o NAME` ours have (the package or a Provides of an installed or
 # offered one of ours), `a NAME` any architecture's (Debian's
 # Architecture: all or Multi-Arch: foreign packages and what they provide)
@@ -77,7 +77,38 @@ for f in $debian "$S"; do
         }
         return field ": " out
     }
+    function unany(line,   head, rest, out, nm, t) {
+        head = line; sub(/: .*/, "", head)
+        rest = substr(line, length(head) + 3); out = ""
+        while (match(rest, /[a-z0-9][a-z0-9.+-]*:any/)) {
+            nm = substr(rest, RSTART, RLENGTH - 4)
+            t = substr(rest, RSTART, RLENGTH)
+            out = out substr(rest, 1, RSTART - 1) ((nm in ours) ? nm : t)
+            rest = substr(rest, RSTART + RLENGTH)
+        }
+        return head ": " out rest
+    }
     {
+        # ours, but a Multi-Arch: same library, meet any architecture'"'"'s
+        # dependency (mkrootfs.py any_arch); dpkg writes what the .deb says
+        if ($0 ~ /(^|\n)Architecture: musl-linux-wasm32(\n|$)/) {
+            if ($0 ~ /(^|\n)Multi-Arch: same(\n|$)/) { print; next }
+            if ($0 ~ /(^|\n)Multi-Arch: /) sub(/(^|\n)Multi-Arch: [a-z]+/, "\nMulti-Arch: foreign")
+            else $0 = $0 "\nMulti-Arch: foreign"
+            sub(/^\n/, "")
+            print; next
+        }
+        # NAME:any (perl:any, python3:any) is met only by a Multi-Arch:
+        # allowed package; ours say foreign, which a plain NAME is met by
+        if ($0 ~ /:any/) {
+            s = ""
+            for (i = 1; i <= NF; i++) {
+                l = $i
+                if (l ~ /^(Pre-Depends|Depends|Recommends): /) l = unany(l)
+                s = s (i > 1 ? "\n" : "") l
+            }
+            $0 = s
+        }
         if ($0 !~ /(^|\n)Architecture: all(\n|$)/) { print; next }
         s = ""; hasma = 0
         for (i = 1; i <= NF; i++) {

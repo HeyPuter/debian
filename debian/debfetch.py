@@ -16,9 +16,16 @@ packages resolve to their first provider. Prints the chosen packages
 (name version arch file), one per line, and with --extract unpacks them
 into ROOT (dpkg-deb -x; no maintainer scripts).
 """
-import argparse, hashlib, lzma, os, subprocess, sys, time, urllib.request
+import argparse, hashlib, lzma, os, subprocess, sys, time, urllib.error, urllib.request
 
 MIRROR = os.environ.get('GEX_DEBIAN_MIRROR', 'http://deb.debian.org/debian')
+SECURITY = os.environ.get('GEX_DEBIAN_SECURITY', 'http://deb.debian.org/debian-security')
+
+
+def mirror(suite):
+    """the archive SUITE is in: Debian's security updates (trixie-security)
+    are an archive of their own"""
+    return SECURITY if suite.endswith('-security') else MIRROR
 KEYRING = '/usr/share/keyrings/debian-archive-keyring.gpg'
 
 
@@ -50,7 +57,7 @@ def release(cache, suite):
     os.makedirs(d, exist_ok=True)
     inrel = f'{d}/InRelease'
     if not fresh(inrel):
-        get(f'{MIRROR}/dists/{suite}/InRelease', inrel)
+        get(f'{mirror(suite)}/dists/{suite}/InRelease', inrel)
     subprocess.run(['gpgv', '--keyring', KEYRING, inrel], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     sums, on = {}, False
@@ -95,7 +102,7 @@ def index(cache, suite, kind):
     name = f'main/{kind}/{leaf}.xz'
     path = f'{d}/{kind}-{leaf}.xz'
     if not (os.path.exists(path) and sha256(path) == sums[name]):
-        get(f'{MIRROR}/dists/{suite}/{name}', path)
+        get(f'{mirror(suite)}/dists/{suite}/{name}', path)
         if sha256(path) != sums[name]:
             sys.exit(f'{name}: sha256 does not match InRelease')
     return lzma.open(path, 'rt', encoding='utf-8', errors='replace').read()
@@ -109,6 +116,7 @@ def packages(cache, suite, arch):
         except KeyError:
             continue  # No-Support-for-Architecture-all: 'all' is in binary-ARCH
         for p in stanzas(text):
+            p['_mirror'] = mirror(suite)
             pkgs.setdefault(p['Package'], p)
     for name, p in pkgs.items():
         for item in p.get('Provides', '').split(','):
@@ -164,9 +172,40 @@ def fetch(cache, p):
     os.makedirs(pool, exist_ok=True)
     path = f'{pool}/{os.path.basename(p["Filename"])}'
     if not (os.path.exists(path) and sha256(path) == p['SHA256']):
-        get(f'{MIRROR}/{p["Filename"]}', path)
+        get(f'{p.get("_mirror", MIRROR)}/{p["Filename"]}', path)
         if sha256(path) != p['SHA256']:
             sys.exit(f'{path}: sha256 does not match Packages')
+    return path
+
+
+SNAPSHOT = os.environ.get('GEX_DEBIAN_SNAPSHOT', 'https://snapshot.debian.org')
+
+
+def fetch_snapshot(cache, name, version, arch):
+    """NAME VERSION's ARCH .deb from snapshot.debian.org, which keeps every
+    version the archive ever had (the archive itself drops one once an
+    update replaces it), or None if it has none. snapshot's files are named
+    by their SHA1, which the download is checked against; the archive's
+    signed indexes no longer list the version, so this is the chain left."""
+    import json, urllib.parse
+    pool = f'{cache}/pool'
+    os.makedirs(pool, exist_ok=True)
+    fn = f'{name}_{version.split(":")[-1]}_{arch}.deb'
+    path = f'{pool}/{fn}'
+    q = lambda v: urllib.parse.quote(v, safe='')
+    try:
+        with urllib.request.urlopen(f'{SNAPSHOT}/mr/binary/{q(name)}/{q(version)}/binfiles?fileinfo=1', timeout=120) as r:
+            info = json.load(r)
+    except urllib.error.HTTPError:
+        return None
+    sha1 = next((h for h, files in info.get('fileinfo', {}).items()
+                 if any(f['name'] == fn and f['archive_name'] == 'debian' for f in files)), None)
+    if not sha1:
+        return None
+    if not (os.path.exists(path) and hashlib.sha1(open(path, 'rb').read()).hexdigest() == sha1):
+        get(f'{SNAPSHOT}/file/{sha1}', path)
+        if hashlib.sha1(open(path, 'rb').read()).hexdigest() != sha1:
+            sys.exit(f'{path}: sha1 does not match snapshot.debian.org')
     return path
 
 

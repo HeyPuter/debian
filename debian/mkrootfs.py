@@ -176,7 +176,40 @@ def without(ctl, gone):
     return out
 
 
+def any_arch(ctl):
+    """CTL as apt and dpkg see one of ours in the image: a package of ours
+    that is not a Multi-Arch: same library says Multi-Arch: foreign (also
+    for Debian's `allowed`, perl and python3, and for packages Debian marks
+    nothing, perl-base). Ours is what runs for every architecture's program,
+    so an arm64 package's dependency on perl, systemd or kio6 is met by ours
+    and installs; without it apt would need Debian's arm64 build of that
+    name, which cannot go in beside ours (one architecture per name), and
+    the install is refused. all-foreign.sh keeps it so after dpkg runs."""
+    if ctl.get('Architecture') == OURS_ARCH and ctl.get('Multi-Arch') != 'same':
+        ctl = dict(ctl)
+        ctl['Multi-Arch'] = 'foreign'
+        # a build of ours with a version of its own (+gex1) is Debian's
+        # version too for what depends on that exactly (python3.13-venv on
+        # python3.13 (= 3.13.5-2+deb13u5)): it Provides its name at it
+        m = re.fullmatch(r'(.+?)\+gex\d+', ctl.get('Version', ''))
+        if m:
+            own = f'{ctl["Package"]} (= {m.group(1)})'
+            ctl['Provides'] = f'{ctl["Provides"]}, {own}' if ctl.get('Provides') else own
+    # and NAME:any on one of ours (python3:any) is a plain NAME: :any is
+    # met only by Multi-Arch: allowed, which ours no longer say
+    for f in ('Pre-Depends', 'Depends', 'Recommends'):
+        if ':any' in ctl.get(f, ''):
+            ctl = dict(ctl)
+            ctl[f] = re.sub(r'([a-z0-9][a-z0-9.+-]*):any\b',
+                            lambda m: m.group(1) if m.group(1) in ANY_ARCH_NAMES else m.group(0), ctl[f])
+    return ctl
+
+
+ANY_ARCH_NAMES = set()  # ours, and what they provide (main fills it)
+
+
 def status_stanza(ctl, conffiles_md5, hold=False):
+    ctl = any_arch(ctl)
     keys = list(ctl)
     out = [f'Package: {ctl["Package"]}', f'Status: {"hold" if hold else "install"} ok installed']
     for k in keys:
@@ -222,7 +255,7 @@ def write_repo(root, debs, repo=None):
                     os.link(os.path.realpath(deb), os.path.join(repo, fn))
                 except OSError:
                     shutil.copy(deb, os.path.join(repo, fn))
-            st = [f'{k}: {v}' for k, v in ctl.items() if not k.startswith('_')]
+            st = [f'{k}: {v}' for k, v in any_arch(ctl).items() if not k.startswith('_')]
             st += [f'Filename: {fn}', f'Size: {len(data)}', f'MD5sum: {hashlib.md5(data).hexdigest()}',
                    f'SHA256: {hashlib.sha256(data).hexdigest()}']
             stanzas.append('\n'.join(st) + '\n')
@@ -282,27 +315,67 @@ def installable_ours(ours, pkgs, provides):
         left = keep
 
 
-def twins_from_suites(cache, ours):
-    """Debian's arm64 builds of our Multi-Arch: same libraries that come
-    from a later suite (cross/cuts.txt `suite`): trixie's arm64 index has
-    another version of them, and the two of a library must have one, so
-    the image's repository carries Debian's arm64 build of that version."""
-    suites = {}
+def twins(cache, ours):
+    """Debian's arm64 build of every Multi-Arch: same library of ours, at
+    our version, for the image's repository. apt installs a Multi-Arch:
+    same package for two architectures only at one version, so an arm64
+    program apt installs that needs one of our libraries needs Debian's
+    arm64 build of exactly our version beside ours. Debian's archive drops
+    a version once a point or security update replaces it, so the repository
+    carries the twin itself: found in trixie's and trixie-security's
+    indexes (and those of a cuts.txt `suite`), in the cache's pool, where the build fetched it
+    verified, or on snapshot.debian.org. A library Debian builds for arm64 whose twin is in neither
+    stops the build: an image with it would refuse arm64 installs."""
+    suites = {SUITE, f'{SUITE}-security'}
+    later = {}  # a cuts.txt `suite`: SOURCE -> the later suite ours is from
     for line in open(os.path.join(HERE, 'cross', 'cuts.txt')):
         f = line.split('|')[0].split()
         if len(f) == 3 and f[1] == 'suite':
-            suites[f[0]] = f[2]
-    out = []
-    for suite in sorted(set(suites.values())):
-        pkgs, _ = debfetch.packages(cache, suite, NATIVE)
-        for _, c in ours:
-            if c['Architecture'] != OURS_ARCH or c.get('Multi-Arch') != 'same':
+            suites.add(f[2])
+            later[f[0]] = f[2]
+    indexes = [debfetch.packages(cache, suite, NATIVE)[0] for suite in sorted(suites)]
+    out, missing = [], []
+    # A source of ours from a later suite (systemd 262): trixie's arm64
+    # builds of its other binaries are of trixie's version, and want
+    # exactly that version of ours (systemd-container on systemd (= 257)).
+    # The repository carries the later suite's arm64 build of each of them
+    # that we do not build, at our version.
+    names = {c['Package'] for _, c in ours}
+    for src, suite in sorted(later.items()):
+        ver = next((c['Version'] for _, c in ours if c.get('Source', c['Package']).split(' ')[0] == src), None)
+        if not ver:
+            continue
+        pkgs = debfetch.packages(cache, suite, NATIVE)[0]
+        for p in pkgs.values():
+            if (p.get('Source', p['Package']).split(' ')[0] != src or p['Architecture'] != NATIVE
+                    or p['Package'] in names):
                 continue
-            src = c.get('Source', c['Package']).split(' ')[0]
-            p = pkgs.get(c['Package'])
-            if suites.get(src) == suite and p and p['Version'] == c['Version'] and p['Architecture'] == NATIVE:
-                deb = debfetch.fetch(cache, p)
+            # the suite moves on: an older version is on snapshot.debian.org
+            deb = debfetch.fetch(cache, p) if p['Version'] == ver else debfetch.fetch_snapshot(cache, p['Package'], ver, NATIVE)
+            if deb:
                 out.append((deb, dict(control(deb), _copy=True)))
+                names.add(p['Package'])
+    for _, c in ours:
+        if c['Architecture'] != OURS_ARCH or c.get('Multi-Arch') != 'same':
+            continue
+        name, ver = c['Package'], c['Version']
+        found = [p for p in (i.get(name) for i in indexes) if p and p['Architecture'] == NATIVE]
+        if not found:
+            continue  # no arm64 build in Debian: nothing installs beside it
+        p = next((p for p in found if p['Version'] == ver), None)
+        if p:
+            deb = debfetch.fetch(cache, p)
+        else:
+            deb = os.path.join(cache, 'pool', f'{name}_{ver.split(":")[-1]}_{NATIVE}.deb')
+            if not os.path.exists(deb):
+                deb = debfetch.fetch_snapshot(cache, name, ver, NATIVE)
+            if not deb:
+                missing.append(f'{name} {ver} (Debian has {found[0]["Version"]})')
+                continue
+        out.append((deb, dict(control(deb), _copy=True)))
+    if missing:
+        sys.exit('no Debian arm64 build at our version of these Multi-Arch: same libraries '
+                 '(arm64 programs needing them would not install):\n  ' + '\n  '.join(missing))
     return out
 
 
@@ -756,6 +829,10 @@ def main():
                 our_libs.add(c['Package'])
                 our_libs.update(provided(c))
     pkgs, provides = debfetch.packages(a.cache, SUITE, NATIVE)
+    for _, c in ours:
+        if c['Architecture'] == OURS_ARCH and c.get('Multi-Arch') != 'same':
+            ANY_ARCH_NAMES.add(c['Package'])
+            ANY_ARCH_NAMES.update(provided(c))
 
     def shared_for_ours(n):
         """a Debian package one of ours may depend on: not tied to Debian's architecture"""
@@ -892,7 +969,7 @@ def main():
         apt_notes(root, a.apt_notes)
     if a.repo_out and os.path.exists(a.repo_out):
         shutil.rmtree(a.repo_out)
-    write_repo(root, offered + twins_from_suites(a.cache, offered), repo=a.repo_out or None)
+    write_repo(root, offered + twins(a.cache, offered), repo=a.repo_out or None)
 
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(root) for f in fs
                if not os.path.islink(os.path.join(d, f)))

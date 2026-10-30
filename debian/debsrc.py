@@ -68,7 +68,7 @@ def main():
             for fn, h in sums.items():
                 path = os.path.join(pool, fn)
                 if not (os.path.exists(path) and debfetch.sha256(path) == h):
-                    debfetch.get(f'{debfetch.MIRROR}/{s["Directory"]}/{fn}', path)
+                    debfetch.get(f'{debfetch.mirror(a.suite)}/{s["Directory"]}/{fn}', path)
                     if debfetch.sha256(path) != h:
                         sys.exit(f'{fn}: sha256 does not match Sources')
                 if fn.endswith('.dsc'):
