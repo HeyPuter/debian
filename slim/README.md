@@ -52,3 +52,28 @@ compute (`debian/shlibdeps.py`).
 POOL: directories of our .debs. Output: `OUT_DIR/debian-slim.tar`, and the
 apt repository of every package of ours in `OUT_DIR/repo`, to serve where
 `gex.list` points. The package list is `slim/roots.txt`.
+
+## The release image
+
+The released slim image is built as above with:
+
+- Pools in this order: the base system's cross build, the KDE image's
+  build, the rebuilds of packages fixed since, and the X clients' build.
+  Where pools hold a package at two versions, the higher one wins, so a
+  pool must not carry a stale package at a higher version than its rebuild:
+  the old ICU debs at `76.1-4+gex1` (from before the change list dropped
+  that suffix) outrank the filtered rebuild at `76.1-4` and are left out of
+  the pools (a pool can be a directory of links to the debs it takes).
+- `GEXCC_PREFIX` set to the gexcc the packages were built with: its libc
+  goes into the image, and an older one than the packages' (apt-get exits
+  127) or a newer one breaks them.
+- `GEX_LEAK_CHECK=warn` while some packages still carry the build machine's
+  home directory in a path; the check fails the build otherwise.
+- `REPO_URL` and `OURS_FOR='*'`, so `OUT_DIR/repo` has every package of
+  ours for apt to install later.
+
+What it gives: a 106 MB tar, 20 MB compressed (`.tar.zst`). With the
+repository served and Debian reached through the network, `apt-get update`
+and `apt-get install` work for our packages and Debian's arm64 ones
+(`nodejs`, `python3`, `git`, `x11-utils`, `x11-xkb-utils`), and the X
+clients they bring open their windows.
