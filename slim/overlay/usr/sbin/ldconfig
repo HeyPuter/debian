@@ -1,0 +1,5 @@
+#!/bin/sh
+# musl has no shared library cache to build: an arm64 package's postinst
+# (and libc-bin's trigger) runs ldconfig for nothing. Debian's own, should
+# apt install libc-bin:arm64, takes this one's place.
+exit 0

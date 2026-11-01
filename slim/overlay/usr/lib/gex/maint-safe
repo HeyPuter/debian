@@ -1,0 +1,46 @@
+#!/bin/sh
+# Every package's maintainer scripts (postinst, prerm, postrm) made
+# fail-safe: a script that fails is noted and the package carries on as if
+# it had not, so one package's failure never leaves the system unable to
+# install the next (a half-configured package is retried, and fails, on
+# every apt run after). Run by dpkg before each of its runs
+# (/etc/dpkg/dpkg.cfg.d/gex-maint-safe), so a package's scripts are
+# wrapped between its unpack and its configure.
+#
+# The package's own script moves to /var/lib/gex/maint, under its own name;
+# in its place in dpkg's info directory a stub runs it, and says when it
+# failed (stderr, and /var/log/gex-maint.log).
+I=/var/lib/dpkg/info
+K=/var/lib/gex/maint
+mkdir -p "$K"
+for f in "$I"/*.postinst "$I"/*.prerm "$I"/*.postrm; do
+    [ -f "$f" ] || continue
+    b=${f##*/}
+    if sed -n 2p "$f" | grep -q '^# gex: fail-safe'; then continue; fi
+    cp -p "$f" "$K/$b" || continue
+    # debconf's frontend runs the script's .config from beside it
+    c=${f%.*}.config
+    [ -e "$c" ] && ln -sf "$c" "$K/${b%.*}.config"
+    cat > "$f.gex" <<STUB
+#!/bin/sh
+# gex: fail-safe ($K/$b is the package's own script: /usr/lib/gex/maint-safe)
+"$K/$b" "\$@" && exit 0
+r=\$?
+echo "gex: $b \$* failed (exit \$r); the package carries on as if it had not" >&2
+echo "$b \$* exit \$r" >> /var/log/gex-maint.log
+exit 0
+STUB
+    chmod 755 "$f.gex" && mv -f "$f.gex" "$f"
+done
+# dpkg's database as apt sees it (usr/lib/gex/all-foreign --status): a
+# dependency of Debian's on an arm64 package is that package's, so dpkg
+# finds it met when it processes triggers (it does not --force-depends
+# there, and a package whose triggers wait on an unmet dependency loops)
+/usr/lib/gex/all-foreign --status
+# scripts of packages since removed
+for k in "$K"/*; do
+    [ -e "$k" ] || continue
+    case $k in *.config) [ -e "$k" ] || rm -f "$k"; continue ;; esac
+    [ -e "$I/${k##*/}" ] || rm -f "$k"
+done
+exit 0

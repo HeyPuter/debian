@@ -1,0 +1,9 @@
+# Interpreters of ours whose plugins are native code: an arm64 package's
+# dependency on one of these is met by Debian's arm64 build only
+# (usr/lib/gex/all-foreign), so its XS module or extension gets an
+# interpreter that can load it, in place of ours. Extended regular
+# expressions, one a line; `<<` after one: only a dependency with an upper
+# version bound (a compiled python extension's).
+perlapi-[0-9.]+
+python3 <<
+python3\.[0-9]+ <<

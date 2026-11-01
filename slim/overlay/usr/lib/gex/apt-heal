@@ -1,0 +1,21 @@
+#!/bin/sh
+# dpkg's database made whole after an install that stopped part way (the
+# page closed, a program killed): run at boot (/etc/gex/boot) and before
+# apt-get update. With it, apt never refuses an install with "dpkg was
+# interrupted": packages left unpacked or half-configured are configured
+# (their scripts fail-safe, /usr/lib/gex/maint-safe), and one left
+# half-installed (its files part written) is removed, for apt to install
+# again when asked.
+S=/var/lib/dpkg/status
+dirty=
+[ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] && dirty=1
+grep -qE '^Status: [a-z]+ [a-z]+ (half-installed|unpacked|half-configured|triggers-awaited|triggers-pending)$|^Status: [a-z]+ reinstreq ' "$S" && dirty=1
+[ -n "$dirty" ] || exit 0
+echo "gex: dpkg was interrupted; putting its database right" >&2
+/usr/lib/gex/maint-safe
+dpkg --configure -a >/dev/null 2>&1
+for p in $(awk 'BEGIN { RS = ""; FS = "\n" } /\nStatus: [a-z]+ (reinstreq [a-z-]+|[a-z]+ half-installed)(\n|$)/ { for (i = 1; i <= NF; i++) if ($i ~ /^Package: /) n = substr($i, 10); else if ($i ~ /^Architecture: /) a = substr($i, 15); print n ":" a }' "$S"); do
+    dpkg --remove --force-remove-reinstreq --force-depends --force-remove-essential "$p" >/dev/null 2>&1
+done
+dpkg --configure -a >/dev/null 2>&1
+exit 0

@@ -1,0 +1,4 @@
+# This image's apt installs anything asked of it, whatever it costs the
+# packages already there (ours among them): usr/lib/gex/all-foreign makes
+# none of ours Essential and lets Debian's arm64 build of one take its place
+# when an install needs it. Without this file (the KDE image), ours stay.

@@ -1,0 +1,2 @@
+# every maintainer script fail-safe (usr/lib/gex/maint-safe)
+pre-invoke=/usr/lib/gex/maint-safe

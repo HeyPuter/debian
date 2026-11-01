@@ -2,6 +2,9 @@
 # The image's start, run once by the page (System.spawn) before its other
 # programs, as root. The image's services: the D-Bus system bus (as root,
 # /etc/gex/dbus-system.conf: build-wasm32.sh).
+# dpkg's database put right if the last install stopped part way (the
+# page closed in it): the next apt then works
+/usr/lib/gex/apt-heal
 mkdir -p /run/dbus
 dbus-uuidgen --ensure=/etc/machine-id
 [ -e /var/lib/dbus/machine-id ] || ln -sf /etc/machine-id /var/lib/dbus/machine-id

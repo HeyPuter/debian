@@ -32,6 +32,8 @@ if [ -n "${GEXCC_PREFIX:-}" ]; then
 fi
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# apt installs anything, whatever it costs ours (slim/apt-anyway.sh)
+sh "$HERE/apt-anyway.sh" "$O/tree"
 # No repository URL of ours in the image: the host writes
 # /etc/apt/sources.list.d/gex.list (the overlay's is a commented example)
 rm -f "$O/tree/etc/apt/sources.list.d/gex.sources"
