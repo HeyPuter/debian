@@ -141,7 +141,7 @@ for f in $rewrite "$S"; do
         while (match(rest, /[a-z0-9][a-z0-9.+-]*:any/)) {
             nm = substr(rest, RSTART, RLENGTH - 4)
             t = substr(rest, RSTART, RLENGTH)
-            out = out substr(rest, 1, RSTART - 1) ((nm in ours) ? nm : t)
+            out = out substr(rest, 1, RSTART - 1) ((anyway || (nm in ours)) ? nm : t)
             rest = substr(rest, RSTART + RLENGTH)
         }
         return head ": " out rest
@@ -186,6 +186,7 @@ for f in $rewrite "$S"; do
         }
         # NAME:any (perl:any, python3:any) is met only by a Multi-Arch:
         # allowed package; ours say foreign, which a plain NAME is met by
+        # (apt-anyway: every NAME, as Debian'"'"'s say foreign too)
         if ($0 ~ /:any/) {
             s = ""
             for (i = 1; i <= NF; i++) {
