@@ -93,7 +93,7 @@ for f in $rewrite "$S"; do
         for (i = 1; i <= n; i++) {
             m = split(c[i], alt, "|"); aout = ""
             for (j = 1; j <= m; j++) {
-                nm = alt[j]; sub(/^ +/, "", nm)
+                nm = alt[j]; sub(/^ +/, "", nm); if (anyway) sub(/ +$/, "", nm)  # (KDE: as it was)
                 split(nm, w, /[ (]/)
                 if (w[1] !~ /:/ && !(w[1] in ours) && !(w[1] in any))
                     sub(/^[^ (]+/, w[1] ":arm64", nm)
@@ -301,7 +301,30 @@ if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$debian" ]; then
         }
     }' "$S" $ours $debian
     mv -f "$W/twins" "$R/etc/apt/preferences.d/gex-twins"
-    if [ -s "$W/twins.bump" ]; then
+fi
+# apt-anyway, after dpkg: a library of ours installed since the update
+# (libevent-2.1-7t64 by one install, then thunderbird wanting Debian's
+# newer arm64 build beside it) says the version its twin is pinned to, as
+# the update would have made it say
+if [ -n "$anyway" ] && [ -n "$only_status" ] && [ -f "$R/etc/apt/preferences.d/gex-twins" ]; then
+    awk -v status="$S" -v bump="$W/twins.bump" '
+    BEGIN { printf "" > bump }
+    FILENAME != status && /^Package: / { n = substr($2, 1, index($2, ":") - 1); next }
+    FILENAME != status && /^Pin: version / { pin[n] = $3; next }
+    FILENAME == status && /^Package: / { n = $2; v = ""; a = ""; ma = ""; st = "" }
+    FILENAME == status && /^Version: / { v = $2 }
+    FILENAME == status && /^Architecture: / { a = $2 }
+    FILENAME == status && /^Multi-Arch: / { ma = $2 }
+    FILENAME == status && /^Status: / { st = $0 }
+    FILENAME == status && /^$/ { check() }
+    function check() {
+        if (a == "musl-linux-wasm32" && ma == "same" && st ~ / installed$/ && (n in pin) && pin[n] != v) print n, pin[n] > bump
+        n = ""
+    }
+    END { if (n != "") check() }' "$R/etc/apt/preferences.d/gex-twins" "$S"
+fi
+if [ -n "$anyway" ] && [ -s "$W/twins.bump" ]; then
+    {
         awk -v bump="$W/twins.bump" 'BEGIN {
             while ((getline l < bump) > 0) { split(l, w, " "); b[w[1]] = w[2] }
             RS = ""; ORS = "\n\n"; FS = "\n"
@@ -313,5 +336,6 @@ if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$debian" ]; then
             sub(/^\n/, "")
             print
         }' "$S" > "$S.gex" && mv -f "$S.gex" "$S"
-    fi
+    }
+    : > "$W/twins.bump"
 fi
