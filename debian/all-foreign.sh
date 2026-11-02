@@ -81,7 +81,9 @@ rewrite=$debian
 [ -n "$anyway" ] && [ -z "$only_status" ] && rewrite="$debian $ours"
 for f in $rewrite "$S"; do
     [ -f "$f" ] || continue
-    awk -v names="$W/names" -v interp="$interp" -v interp_lt="$interp_lt" -v anyway="$anyway" 'BEGIN {
+    # the expressions through the environment: awk -v would read their \. as an escape
+    GEX_INTERP=$interp GEX_INTERP_LT=$interp_lt awk -v names="$W/names" -v anyway="$anyway" 'BEGIN {
+        interp = ENVIRON["GEX_INTERP"]; interp_lt = ENVIRON["GEX_INTERP_LT"]
         while ((getline l < names) > 0) { split(l, w, " "); if (w[1] == "o") ours[w[2]] = 1; else any[w[2]] = 1 }
         RS = ""; ORS = "\n\n"; FS = "\n"
     }
