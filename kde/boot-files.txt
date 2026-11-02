@@ -9,3 +9,8 @@
 /usr/share/wallpapers/Next/contents/images/1366x768.png
 /usr/share/wallpapers/Next/contents/images/1920x1080.png
 /usr/share/wallpapers/Next/contents/images/2560x1440.png
+#
+# dpkg's database put right at the session's start (gex-kde-session runs
+# debian/apt-hooks.sh's usr/lib/gex/apt-heal before a recorded run had it):
+# it reads dpkg's status, with grep, ls and dash (already first)
+/usr/lib/gex/apt-heal

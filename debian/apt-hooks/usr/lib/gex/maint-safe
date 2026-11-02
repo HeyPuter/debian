@@ -20,9 +20,14 @@ while IFS= read -r f; do
     [ -f "$f" ] || continue
     b=${f##*/}
     cp -p "$f" "$K/$b" || continue
-    # debconf's frontend runs the script's .config from beside it
-    c=${f%.*}.config
-    [ -e "$c" ] && ln -sf "$c" "$K/${b%.*}.config"
+    # debconf's frontend reads the script's .templates and runs its
+    # .config from beside it (without the templates a postinst's db_get
+    # fails: phonon4qt6's exit 10), so the package's other control files
+    # are there too
+    for c in "${f%.*}".*; do
+        case ${c##*.} in postinst|prerm|postrm|preinst|gex) continue ;; esac
+        [ -e "$c" ] && ln -sf "$c" "$K/${c##*/}"
+    done
     cat > "$f.gex" <<STUB
 #!/bin/sh
 # gex: fail-safe ($K/$b is the package's own script: /usr/lib/gex/maint-safe)
@@ -41,8 +46,9 @@ done
 /usr/lib/gex/all-foreign --status
 # scripts of packages since removed
 for k in "$K"/*; do
+    # (a link whose file went with its package)
+    if [ -L "$k" ]; then [ -e "$k" ] || rm -f "$k"; continue; fi
     [ -e "$k" ] || continue
-    case $k in *.config) [ -e "$k" ] || rm -f "$k"; continue ;; esac
     [ -e "$I/${k##*/}" ] || rm -f "$k"
 done
 exit 0

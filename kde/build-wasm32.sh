@@ -52,6 +52,8 @@ fi
 # overlay's /bin/bash link would replace bash with a link to itself)
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# fail-safe maintainer scripts, apt-heal, no py3compile (debian/apt-hooks.sh)
+sh "$ROOT/debian/apt-hooks.sh" "$O/tree"
 # The interactive shells' welcome (the overlay's /etc/gex-welcome.sh), for
 # root and for users made from /etc/skel
 for rc in "$O/tree/root/.bashrc" "$O/tree/etc/skel/.bashrc"; do

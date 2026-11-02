@@ -2,7 +2,7 @@
 # py3compile only when it is there, and python compiles a module when it is
 # first imported. Under Debian's arm64 python (an install that crossgrades
 # it), each py3compile run takes about a minute: duply's install went from
-# 1962 s to 385 s without them (slim/apt-anyway.sh removes the copies
+# 1962 s to 385 s without them (debian/apt-hooks.sh removes the copies
 # already in the tree).
 path-exclude=/usr/bin/py3compile
 path-exclude=/usr/bin/py3clean

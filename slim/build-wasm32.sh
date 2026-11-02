@@ -36,6 +36,8 @@ if [ -n "${GEXCC_PREFIX:-}" ]; then
 fi
 ex=; [ -L "$O/tree/bin" ] && ex=--exclude=./bin
 tar -C "$HERE/overlay" $ex -cf - . | tar -C "$O/tree" --keep-directory-symlink -xf -
+# fail-safe maintainer scripts, apt-heal, no py3compile (debian/apt-hooks.sh)
+sh "$ROOT/debian/apt-hooks.sh" "$O/tree"
 # apt installs anything, whatever it costs ours (slim/apt-anyway.sh)
 sh "$HERE/apt-anyway.sh" "$O/tree"
 # No repository URL of ours in the image: the host writes

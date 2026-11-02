@@ -1,0 +1,3 @@
+// dpkg's database put right first when an earlier install stopped part way
+// (usr/lib/gex/apt-heal)
+APT::Update::Pre-Invoke { "/usr/lib/gex/apt-heal"; };

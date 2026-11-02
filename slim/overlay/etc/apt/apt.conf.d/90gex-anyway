@@ -3,5 +3,3 @@
 // An essential package of ours may give way to Debian's arm64 build of it
 // (perl-base for an arm64 perl module)
 APT::Get::allow-remove-essential "true";
-// dpkg's database put right first when an earlier install stopped part way
-APT::Update::Pre-Invoke { "/usr/lib/gex/apt-heal"; };

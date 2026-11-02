@@ -18,6 +18,10 @@ esac
 export HOME=/root USER=root LOGNAME=root SHELL=/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export XDG_RUNTIME_DIR=/run/user/0
+# dpkg's database put right if the last install stopped part way (a page
+# closed, a session killed, in an apt install): the next apt then works.
+# When nothing stopped (always, in a fresh page) it is one grep.
+[ -x /usr/lib/gex/apt-heal ] && /usr/lib/gex/apt-heal
 # A fresh one each boot, as a login's is: a session that was killed leaves
 # its sockets, ICE authority and temporary files behind in a tree that is
 # kept (natively)
