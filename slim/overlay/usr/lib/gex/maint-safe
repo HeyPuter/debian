@@ -13,10 +13,12 @@
 I=/var/lib/dpkg/info
 K=/var/lib/gex/maint
 mkdir -p "$K"
-for f in "$I"/*.postinst "$I"/*.prerm "$I"/*.postrm; do
+# the scripts not yet wrapped, in one grep (one exec per script made each
+# dpkg run cost seconds once hundreds of packages were in)
+grep -L -m1 '^# gex: fail-safe' "$I"/*.postinst "$I"/*.prerm "$I"/*.postrm 2>/dev/null |
+while IFS= read -r f; do
     [ -f "$f" ] || continue
     b=${f##*/}
-    if sed -n 2p "$f" | grep -q '^# gex: fail-safe'; then continue; fi
     cp -p "$f" "$K/$b" || continue
     # debconf's frontend runs the script's .config from beside it
     c=${f%.*}.config
