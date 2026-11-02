@@ -98,6 +98,10 @@ EOF
 for f in "$L"/*.so.*; do
     n=$(basename "$f"); echo "${n%%.so.*} ${n##*.so.} gex-gl (>= $VER)"
 done > "$T/lib/DEBIAN/shlibs"
+# dpkg's record of each file's sum (dpkg --audit asks for it)
+for d in lib dev; do
+    (cd "$T/$d" && find . -path ./DEBIAN -prune -o -type f -print | sed 's#^\./##' | LC_ALL=C sort | xargs -r md5sum > DEBIAN/md5sums)
+done
 dpkg-deb --root-owner-group -b "$T/lib" "$W/debs/gex-gl_${VER}_musl-linux-wasm32.deb" >/dev/null
 dpkg-deb --root-owner-group -b "$T/dev" "$W/debs/gex-gl-dev_${VER}_musl-linux-wasm32.deb" >/dev/null
 echo "gex-gl $VER: $(ls "$L" | tr '\n' ' ')"

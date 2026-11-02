@@ -57,6 +57,19 @@ def control_member(deb, name):
         return open(p, encoding='utf-8', errors='replace').read() if os.path.exists(p) else None
 
 
+def data_md5sums(deb):
+    """md5sums as dpkg-deb's builders write them, from the data archive's
+    files: for a package built without one (gex-gl), so dpkg --audit has
+    nothing to say of it in the image."""
+    data = subprocess.run(['dpkg-deb', '--fsys-tarfile', deb], check=True, capture_output=True).stdout
+    out = []
+    with tarfile.open(fileobj=io.BytesIO(data)) as tf:
+        for m in tf.getmembers():
+            if m.isfile():
+                out.append(f'{hashlib.md5(tf.extractfile(m).read()).hexdigest()}  {os.path.normpath(m.name)}')
+    return ''.join(l + '\n' for l in out)
+
+
 # As Debian's minimized images (and dpkg's path-exclude, which the image
 # carries so apt installs behave the same): no documentation or
 # translations; copyright files stay.
@@ -935,7 +948,7 @@ def main():
         alternatives(control_member(deb, 'postinst'), alts)
         stem = info_name(ctl)
         open(os.path.join(info, f'{stem}.list'), 'w').write('\n'.join(paths) + '\n')
-        sums = control_member(deb, 'md5sums')
+        sums = control_member(deb, 'md5sums') or data_md5sums(deb)
         if sums:
             open(os.path.join(info, f'{stem}.md5sums'), 'w').write(sums)
         conf = control_member(deb, 'conffiles')
