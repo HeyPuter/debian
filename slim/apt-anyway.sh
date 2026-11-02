@@ -15,10 +15,14 @@
 # interpreters (usr/lib/gex/all-foreign reads them), the fail-safe
 # maintainer scripts (usr/lib/gex/maint-safe, a dpkg hook), dpkg's
 # database put right at boot and before apt update (usr/lib/gex/apt-heal),
-# a no-op ldconfig, and apt.conf.d/90gex-anyway.
+# a no-op ldconfig, no py3compile (dpkg.cfg.d/gex-no-pycompile), and
+# apt.conf.d/90gex-anyway.
 set -eu
 T=${1:?TREE}
 sed -i 's/^Status: hold ok installed$/Status: install ok installed/' "$T/var/lib/dpkg/status"
+# no byte-compiling at install (etc/dpkg/dpkg.cfg.d/gex-no-pycompile keeps
+# later packages' copies out)
+rm -f "$T/usr/bin/py3compile" "$T/usr/bin/py3clean"
 cat > "$T/etc/apt/preferences.d/gex-native" <<'PIN'
 # Our packages (o=gex) before Debian's, but not at any cost: an install
 # that needs Debian's arm64 build of one of ours in its place gets it
