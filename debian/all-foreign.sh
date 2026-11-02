@@ -77,13 +77,20 @@ fi
 # it) needs ours, so the two change architecture together.
 anyway=
 [ -f "$R/etc/gex/apt-anyway" ] && anyway=1
+# apt-anyway: the Multi-Arch: same libraries of ours (a full run: from our index)
+if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$ours" ]; then
+    awk 'BEGIN { RS = ""; FS = "\n" }
+    /(^|\n)Multi-Arch: same(\n|$)/ { for (i = 1; i <= NF; i++) if ($i ~ /^Package: /) print substr($i, 10) }' $ours | sort -u > "$W/same.new" && mv -f "$W/same.new" "$W/same"
+fi
+[ -f "$W/same" ] || : > "$W/same"
 rewrite=$debian
 [ -n "$anyway" ] && [ -z "$only_status" ] && rewrite="$debian $ours"
 for f in $rewrite "$S"; do
     [ -f "$f" ] || continue
     # the expressions through the environment: awk -v would read their \. as an escape
-    GEX_INTERP=$interp GEX_INTERP_LT=$interp_lt awk -v names="$W/names" -v anyway="$anyway" 'BEGIN {
+    GEX_INTERP=$interp GEX_INTERP_LT=$interp_lt awk -v names="$W/names" -v same_f="$W/same" -v anyway="$anyway" 'BEGIN {
         interp = ENVIRON["GEX_INTERP"]; interp_lt = ENVIRON["GEX_INTERP_LT"]
+        while ((getline l < same_f) > 0) same[l] = 1
         while ((getline l < names) > 0) { split(l, w, " "); if (w[1] == "o") ours[w[2]] = 1; else any[w[2]] = 1 }
         RS = ""; ORS = "\n\n"; FS = "\n"
     }
@@ -120,7 +127,7 @@ for f in $rewrite "$S"; do
         }
         return head ":" out
     }
-    function tonative(line,   head, rest, n, i, c, m, j, alt, nm, w, out, aout) {
+    function tonative(line,   head, rest, n, i, c, m, j, alt, nm, w, out, aout, k) {
         head = line; sub(/: .*/, "", head)
         rest = substr(line, length(head) + 3); n = split(rest, c, ",")
         out = ""
@@ -131,6 +138,10 @@ for f in $rewrite "$S"; do
                 split(nm, w, /[ (]/)
                 if (w[1] !~ /:/ && nm ~ /\(= / && (w[1] in ours))
                     sub(/^[^ (]+/, w[1] ":musl-linux-wasm32", nm)
+                # a Multi-Arch: same library of ours says its twin'"'"'s newer
+                # version once Debian moves on (below): at least the version
+                k = w[1]; sub(/:musl-linux-wasm32$/, "", k)
+                if ((k in same) && nm ~ /\(= /) sub(/\(= /, "(>= ", nm)
                 aout = aout (j > 1 ? " | " : "") nm
             }
             out = out (i > 1 ? ", " : " ") aout
@@ -348,6 +359,7 @@ if [ -n "$anyway" ] && [ -n "$ours" ]; then
         }
         if (a != "musl-linux-wasm32") next
         ours[n] = 1
+        if ($0 ~ /(^|\n)Multi-Arch: same(\n|$)/) same[n] = 1
         k = split(dep, c, /[,|]/)
         for (j = 1; j <= k; j++)
             if (match(c[j], /[a-z0-9][a-z0-9.+-]*:musl-linux-wasm32 \(= /)) {
@@ -356,7 +368,7 @@ if [ -n "$anyway" ] && [ -n "$ours" ]; then
             }
     }
     END {
-        for (n in arm) if ((n in ours) && !(n in native)) gone[n] = 1
+        for (n in arm) if ((n in ours) && !(n in native) && !(n in same)) gone[n] = 1
         do {
             more = 0
             for (n in needs) {
