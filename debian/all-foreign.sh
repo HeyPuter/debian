@@ -162,6 +162,18 @@ for f in $rewrite "$S"; do
                 }
                 $0 = s
             }
+            # ours say foreign here, so a NAME:any of ours (libgio-2.0-dev-bin
+            # on python3:any) is met by none: a plain NAME (apt-anyway; the
+            # KDE image as it was)
+            if (anyway && $0 ~ /:any/) {
+                s = ""
+                for (i = 1; i <= NF; i++) {
+                    l = $i
+                    if (l ~ /^(Pre-Depends|Depends|Recommends): /) l = unany(l)
+                    s = s (i > 1 ? "\n" : "") l
+                }
+                $0 = s
+            }
             if ($0 ~ /(^|\n)Multi-Arch: same(\n|$)/) { print; next }
             if ($0 ~ /(^|\n)Multi-Arch: /) sub(/(^|\n)Multi-Arch: [a-z]+/, "\nMulti-Arch: foreign")
             else $0 = $0 "\nMulti-Arch: foreign"
