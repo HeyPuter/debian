@@ -244,7 +244,7 @@ done
 # gex-twins) is to that version: an arm64 package that needs Debian's
 # newest gets it beside ours.
 if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$debian" ]; then
-    awk -v status="$S" -v ourlist="$ours" -v twins="$W/twins" -v bump="$W/twins.bump" '
+    awk -v status="$S" -v ourlist="$ours" -v twins="$W/twins" -v bump="$W/twins.bump" -v idx="$W/twins.idx" '
     # the version order of dpkg (lib/dpkg/version.c)
     function order(c) {
         if (c == "~") return -1
@@ -294,7 +294,7 @@ if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$debian" ]; then
             else if ($i ~ /^Status: /) st = $i
         }
         if (FILENAME == status) {
-            if (a == "musl-linux-wasm32" && ma == "same" && st ~ / installed$/) { inst[n] = v; ours[n] = v }
+            if (a == "musl-linux-wasm32" && ma == "same" && st ~ / (installed|unpacked|half-configured)$/) { inst[n] = v; ours[n] = v }
         } else if (a == "musl-linux-wasm32") {
             if (ma == "same" && !(n in inst)) ours[n] = v
         } else if (a == "arm64") {
@@ -304,14 +304,34 @@ if [ -n "$anyway" ] && [ -z "$only_status" ] && [ -n "$debian" ]; then
     END {
         print "# Debian'"'"'s arm64 build of each Multi-Arch: same library of ours, at the" > twins
         print "# version ours says (usr/lib/gex/all-foreign, apt-anyway)\n" > twins
-        printf "" > bump
+        printf "" > bump; printf "" > idx
         for (n in ours) {
             v = ours[n]
-            if ((n in deb) && vcmp(deb[n], v) > 0) { v = deb[n]; if (n in inst) print n, v > bump }
+            if ((n in deb) && vcmp(deb[n], v) > 0) { v = deb[n]; if (n in inst) print n, v > bump; print n, v > idx }
             printf "Package: %s:arm64\nPin: version %s\nPin-Priority: 1001\n\n", n, v > twins
         }
     }' "$S" $ours $debian
     mv -f "$W/twins" "$R/etc/apt/preferences.d/gex-twins"
+    # and our index says it too, for one of ours not installed yet: apt then
+    # puts ours in beside the arm64 build already at Debian's newer version
+    # (libpcre2-16-0 for libqt6core6t64); dpkg unpacks ours as built, and
+    # dpkg's hook (--status, below) gives it the twin's version before the
+    # two are configured
+    if [ -s "$W/twins.idx" ]; then
+        for f in $ours; do
+            awk -v idx="$W/twins.idx" 'BEGIN {
+                while ((getline l < idx) > 0) { split(l, w, " "); b[w[1]] = w[2] }
+                RS = ""; ORS = "\n\n"; FS = "\n"
+            }
+            {
+                n = ""; for (i = 1; i <= NF; i++) if ($i ~ /^Package: /) n = substr($i, 10)
+                if ((n in b) && $0 ~ /(^|\n)Multi-Arch: same(\n|$)/)
+                    sub(/(^|\n)Version: [^\n]*/, "\nVersion: " b[n])
+                sub(/^\n/, "")
+                print
+            }' "$f" > "$f.gex" && mv -f "$f.gex" "$f"
+        done
+    fi
 fi
 # apt-anyway, after dpkg: a library of ours installed since the update
 # (libevent-2.1-7t64 by one install, then thunderbird wanting Debian's
@@ -329,7 +349,7 @@ if [ -n "$anyway" ] && [ -n "$only_status" ] && [ -f "$R/etc/apt/preferences.d/g
     FILENAME == status && /^Status: / { st = $0 }
     FILENAME == status && /^$/ { check() }
     function check() {
-        if (a == "musl-linux-wasm32" && ma == "same" && st ~ / installed$/ && (n in pin) && pin[n] != v) print n, pin[n] > bump
+        if (a == "musl-linux-wasm32" && ma == "same" && st ~ / (installed|unpacked|half-configured)$/ && (n in pin) && pin[n] != v) print n, pin[n] > bump
         n = ""
     }
     END { if (n != "") check() }' "$R/etc/apt/preferences.d/gex-twins" "$S"
