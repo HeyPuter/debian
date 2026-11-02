@@ -323,6 +323,53 @@ if [ -n "$anyway" ] && [ -n "$only_status" ] && [ -f "$R/etc/apt/preferences.d/g
     }
     END { if (n != "") check() }' "$R/etc/apt/preferences.d/gex-twins" "$S"
 fi
+# apt-anyway, after an update or dpkg: one of ours that needs another of
+# ours at its exact version (perl on perl-base) cannot go in once Debian's
+# arm64 build of that other has taken its place (perl-base:arm64 for an
+# XS module), and apt, asked for the name, takes ours and gives up. So ours
+# of such a name are refused (pinned at -1), and apt takes Debian's arm64
+# build of it. Also everything of ours that needs one of those exactly.
+if [ -n "$anyway" ] && [ -n "$ours" ]; then
+    awk -v status="$S" '
+    BEGIN { RS = ""; FS = "\n" }
+    {
+        n = ""; a = ""; st = ""; dep = ""
+        for (i = 1; i <= NF; i++) {
+            if ($i ~ /^Package: /) n = substr($i, 10)
+            else if ($i ~ /^Architecture: /) a = substr($i, 15)
+            else if ($i ~ /^Status: /) st = $i
+            else if ($i ~ /^(Pre-Depends|Depends): /) dep = dep ", " substr($i, index($i, ": ") + 2)
+        }
+        if (FILENAME == status) {
+            if (st !~ / installed$/) next
+            if (a == "musl-linux-wasm32") native[n] = 1
+            else if (a == "arm64") arm[n] = 1
+            next
+        }
+        if (a != "musl-linux-wasm32") next
+        ours[n] = 1
+        k = split(dep, c, /[,|]/)
+        for (j = 1; j <= k; j++)
+            if (match(c[j], /[a-z0-9][a-z0-9.+-]*:musl-linux-wasm32 \(= /)) {
+                m = substr(c[j], RSTART, RLENGTH); sub(/:.*/, "", m)
+                needs[n] = needs[n] " " m
+            }
+    }
+    END {
+        for (n in arm) if ((n in ours) && !(n in native)) gone[n] = 1
+        do {
+            more = 0
+            for (n in needs) {
+                if ((n in gone) || (n in native)) continue
+                k = split(needs[n], w, " ")
+                for (j = 1; j <= k; j++) if (w[j] in gone) { gone[n] = 1; more = 1; break }
+            }
+        } while (more)
+        print "# ours that cannot go in beside Debian'"'"'s arm64 builds installed in"
+        print "# their place: apt takes the arm64 build (usr/lib/gex/all-foreign)\n"
+        for (n in gone) printf "Package: %s:musl-linux-wasm32\nPin: version *\nPin-Priority: -1\n\n", n
+    }' "$S" $ours > "$W/gone" && mv -f "$W/gone" "$R/etc/apt/preferences.d/gex-gone"
+fi
 if [ -n "$anyway" ] && [ -s "$W/twins.bump" ]; then
     {
         awk -v bump="$W/twins.bump" 'BEGIN {
