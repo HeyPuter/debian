@@ -10,8 +10,19 @@
 # The package's own script moves to /var/lib/gex/maint, under its own name;
 # in its place in dpkg's info directory a stub runs it, and says when it
 # failed (stderr, and /var/log/gex-maint.log).
+#
+# dpkg runs it before each of its runs, and apt runs dpkg a few times per
+# install, most of them with nothing to do here: a package's scripts need
+# wrapping, and dpkg's database all-foreign's view, only while a package is
+# part way in (unpacked and not yet configured, or with triggers waiting),
+# which dpkg's database says, or while dpkg's journal has entries not yet
+# in it (a run that stopped: apt-heal). Otherwise it is one grep.
 I=/var/lib/dpkg/info
 K=/var/lib/gex/maint
+set -- /var/lib/dpkg/updates/[0-9]*
+if ! [ -e "$1" ] && ! grep -qE '^Status: [a-z]+ [a-z]+ (unpacked|half-configured|half-installed|triggers-awaited|triggers-pending)$|^Status: [a-z]+ reinstreq ' /var/lib/dpkg/status; then
+    exit 0
+fi
 mkdir -p "$K"
 # the scripts not yet wrapped, in one grep (one exec per script made each
 # dpkg run cost seconds once hundreds of packages were in)
@@ -42,8 +53,11 @@ done
 # dpkg's database as apt sees it (usr/lib/gex/all-foreign --status): a
 # dependency of Debian's on an arm64 package is that package's, so dpkg
 # finds it met when it processes triggers (it does not --force-depends
-# there, and a package whose triggers wait on an unmet dependency loops)
-/usr/lib/gex/all-foreign --status
+# there, and a package whose triggers wait on an unmet dependency loops).
+# Only with apt-anyway (slim), where an install crossgrades what Debian's
+# arm64 packages need: elsewhere (the KDE image) dpkg's DPkg::Post-Invoke
+# run of it after apt's last dpkg run is enough, as it always was there.
+[ -f /etc/gex/apt-anyway ] && /usr/lib/gex/all-foreign --status
 # scripts of packages since removed
 for k in "$K"/*; do
     # (a link whose file went with its package)
