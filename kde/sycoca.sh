@@ -11,6 +11,13 @@
 #
 #   kde/sycoca.sh TREE      (GEXC: gexc, default gexc on PATH)
 #
+# SOURCE_DATE_EPOCH (the builds set it): the same tree gives the same
+# database. The database records the times of the files and directories it
+# indexes, and its own as it is built: the tree's times are clamped to
+# SOURCE_DATE_EPOCH first (as the tar that ships it clamps them), and its
+# own is said as SOURCE_DATE_EPOCH. Nothing indexed is then newer than the
+# database, so KService does not rebuild it at the session's start.
+#
 # A tree without kbuildsycoca6 (an ejected one keeps only what the session
 # ran) borrows it from SYCOCA_TOOLS, a tree that has it (the arm64 build's
 # tree), for the run.
@@ -26,6 +33,9 @@ if [ ! -e "$T/usr/bin/kbuildsycoca6" ]; then
     cp -a "$tools/usr/bin/kbuildsycoca6" "$T/usr/bin/"
     borrowed=$t
 fi
+sde=${SOURCE_DATE_EPOCH:-}
+[ -z "$sde" ] || find "$T" -newermt "@$sde" -exec touch -h -d "@$sde" {} +
+t0=$(date +%s)
 "$GEXC" run --sysroot "$T" --uid 0 \
     --env HOME=/root --env XDG_RUNTIME_DIR=/tmp --env LANG=C.UTF-8 \
     --env XDG_DATA_DIRS=/usr/local/share:/usr/share --env XDG_CONFIG_DIRS=/etc/xdg \
@@ -37,4 +47,19 @@ if [ -n "$borrowed" ]; then
 fi
 db=$(ls "$T"/root/.cache/ksycoca6_* 2>/dev/null | head -1)
 [ -n "$db" ] || { echo "kde/sycoca.sh: kbuildsycoca6 made no database in $T" >&2; exit 1; }
+if [ -n "$sde" ]; then
+    # the database's own time (its header's one quint64 of ms since the
+    # epoch that falls in this run) said as SOURCE_DATE_EPOCH
+    python3 -I - "$db" "$t0" "$(date +%s)" "$sde" <<'PY'
+import struct, sys
+db, t0, t1, sde = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+b = bytearray(open(db, 'rb').read())
+at = [i for i in range(min(len(b), 4096) - 7) if (t0 - 1) * 1000 <= struct.unpack_from('>Q', b, i)[0] <= (t1 + 1) * 1000]
+if len(at) != 1:
+    sys.exit(f'kde/sycoca.sh: {len(at)} build times in the header of {db}, not one')
+struct.pack_into('>Q', b, at[0], sde * 1000)
+open(db, 'wb').write(b)
+PY
+    touch -h -d "@$sde" "$db" "$T/root/.cache" "$T/root" "$T/usr/bin"
+fi
 echo "$db"

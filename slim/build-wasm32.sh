@@ -13,6 +13,10 @@
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
+# One time for all the build stamps (SOURCE_DATE_EPOCH: the same inputs
+# give the same bytes), by default this checkout's last commit's
+SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$ROOT" log -1 --format=%ct 2>/dev/null || echo 0)}
+export SOURCE_DATE_EPOCH
 O=${1:?OUT_DIR}
 shift
 [ $# -gt 0 ] || { echo "usage: $0 OUT_DIR POOL..." >&2; exit 2; }
@@ -76,8 +80,8 @@ if [ -n "$leak" ]; then
     printf '%s\n' "$leak" | head -20 >&2
     [ "${GEX_LEAK_CHECK:-fail}" = warn ] || exit 1
 fi
-tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name --exclude=./home/user -cf "$O/debian-slim.tar" .
-tar -C "$O/tree" --owner=1000 --group=1000 --numeric-owner --sort=name -rf "$O/debian-slim.tar" ./home/user
+tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name --mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime --exclude=./home/user -cf "$O/debian-slim.tar" .
+tar -C "$O/tree" --owner=1000 --group=1000 --numeric-owner --sort=name --mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime -rf "$O/debian-slim.tar" ./home/user
 echo "$O/debian-slim.tar: $(du -h "$O/debian-slim.tar" | cut -f1)"
 # (downloaded once and kept: the slower level pays)
 zstd -q -f -T0 -19 --long=27 "$O/debian-slim.tar" -o "$O/debian-slim.tar.zst"

@@ -279,9 +279,9 @@ def write_repo(root, debs, repo=None):
             p = os.path.join(bindir, leaf)
             rel_sums.append(f' {hashlib.sha256(open(p, "rb").read()).hexdigest()} {os.path.getsize(p)} '
                             f'main/binary-{arch}/{leaf}')
-    import email.utils
+    import email.utils, time
     rel = [f'Origin: gex', 'Label: gex native', f'Suite: {SUITE}', f'Codename: {SUITE}',
-           f'Date: {email.utils.formatdate(usegmt=True)}',
+           f'Date: {email.utils.formatdate(float(os.environ.get("SOURCE_DATE_EPOCH") or time.time()), usegmt=True)}',
            f'Architectures: {OURS_ARCH} {NATIVE}', 'Components: main',
            'Description: Debian tools built from source with gexcc as native wasm32', 'SHA256:'] + rel_sums
     open(os.path.join(repo, f'dists/{SUITE}/Release'), 'w').write('\n'.join(rel) + '\n')

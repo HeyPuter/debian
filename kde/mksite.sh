@@ -54,7 +54,7 @@ if [ -d "$TAR" ]; then
     [ -n "${ADD:-}" ] && tar -C "$ADD" -cf - . | tar -C "$TAR" --keep-directory-symlink -xf -
     cp -a "$HERE/overlay/." "$TAR/"
     "$HERE/sycoca.sh" "$TAR" > /dev/null
-    (cd "$TAR" && tar --owner=0 --group=0 -cf "$OUT/kde.tar" $(ls -A))
+    (cd "$TAR" && tar --owner=0 --group=0 --numeric-owner --sort=name ${SOURCE_DATE_EPOCH:+--mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime} -cf "$OUT/kde.tar" $(ls -A))
     TAR=$OUT/kde.tar
 fi
 cp -a "$PAGE/." "$OUT/"
@@ -150,7 +150,7 @@ if [ -f "$OUT/lazy.json" ]; then
     packed+=(lazy.json)
 fi
 python3 -I - "$OUT" "$TAR" "${packed[@]}" <<'PY'
-import json, os, sys, time
+import json, os, sys
 out, tar, names = sys.argv[1], sys.argv[2], sys.argv[3:]
 files = {}
 for n in names:
@@ -159,7 +159,16 @@ for n in names:
     if n == 'lazy.json':
         import hashlib
         files['/' + n]['h'] = hashlib.sha256(open(plain, 'rb').read()).hexdigest()[:16]
-json.dump({'build': time.strftime('%Y%m%d%H%M%S'), 'files': files}, open(os.path.join(out, 'pack.json'), 'w'), indent=1)
+# the build's name (the page's ?v= on what it fetches) is its packed files'
+# hash, not the time: the same files, the same name, and the browser's
+# cached copies stay good across a rebuild that changed nothing
+import hashlib
+h = hashlib.sha256()
+for n in sorted(names):
+    with open(os.path.join(out, n + '.zst'), 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+json.dump({'build': h.hexdigest()[:16], 'files': files}, open(os.path.join(out, 'pack.json'), 'w'), indent=1)
 total = sum(e['zsize'] for e in files.values())
 print(f'{out}: {len(files)} packed files, {total} bytes compressed')
 PY

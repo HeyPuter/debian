@@ -278,8 +278,12 @@ def main():
             subprocess.run(['tar', '-C', t, '-xf', '-'] + z,
                            input=dict(members)[ctl_name], check=True)
             open(os.path.join(t, 'control'), 'w').write(control)
-            body = subprocess.run(['tar', '-C', t, '--owner=0', '--group=0', '--numeric-owner', '--sort=name',
-                                   '-cJf', '-', '.'], capture_output=True, check=True).stdout
+            # (SOURCE_DATE_EPOCH: the rewritten control no newer, so the same
+            # pools give the same .deb)
+            sde = os.environ.get('SOURCE_DATE_EPOCH')
+            body = subprocess.run(['tar', '-C', t, '--owner=0', '--group=0', '--numeric-owner', '--sort=name']
+                                  + ([f'--mtime=@{sde}', '--clamp-mtime'] if sde else [])
+                                  + ['-cJf', '-', '.'], capture_output=True, check=True).stdout
         ar_write(dst, [('control.tar.xz', body) if n == ctl_name else (n, b) for n, b in members])
     open(os.path.join(out, 'shlibdeps.txt'), 'w').write('\n'.join(report) + '\n')
     print(f'{gained} of {len(info)} packages gained Depends ({out}/shlibdeps.txt)', file=sys.stderr)

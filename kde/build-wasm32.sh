@@ -24,6 +24,10 @@
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
+# One time for all the build stamps (SOURCE_DATE_EPOCH: the same inputs
+# give the same bytes), by default this checkout's last commit's
+SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$ROOT" log -1 --format=%ct 2>/dev/null || echo 0)}
+export SOURCE_DATE_EPOCH
 O=${1:-${OUT_DIR:-$ROOT/out}/kde/wasm32}
 shift || true
 [ $# -gt 0 ] || { echo "usage: $0 OUT_DIR POOL..." >&2; exit 2; }
@@ -93,5 +97,5 @@ if [ -n "$leak" ]; then
     printf '%s\n' "$leak" | head -20 >&2
     [ "${GEX_LEAK_CHECK:-fail}" = warn ] || exit 1
 fi
-tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name -cf "$O/kde.tar" .
+tar -C "$O/tree" --owner=0 --group=0 --numeric-owner --sort=name --mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime -cf "$O/kde.tar" .
 echo "$O/kde.tar: $(du -h "$O/kde.tar" | cut -f1)"
