@@ -5,7 +5,7 @@
 # interrupted": packages left unpacked or half-configured are configured
 # (their scripts fail-safe, /usr/lib/gex/maint-safe), and one left
 # half-installed (its files part written) is removed, for apt to install
-# again when asked.
+# again when asked. Then apt's dependencies made whole too (below).
 S=/var/lib/dpkg/status
 dirty=
 [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] && dirty=1
@@ -18,4 +18,20 @@ for p in $(awk 'BEGIN { RS = ""; FS = "\n" } /\nStatus: [a-z]+ (reinstreq [a-z-]
     dpkg --remove --force-remove-reinstreq --force-depends --force-remove-essential "$p" >/dev/null 2>&1
 done
 dpkg --configure -a >/dev/null 2>&1
+# and apt's view whole: a package configured above may need one whose
+# unpack failed (thunderbird-l10n-kab, thunderbird's libxul out of space),
+# and apt refuses every install, of anything, while a dependency is unmet.
+# apt fixes it if it can (the missing package installed); if not, the
+# packages it cannot fix are removed, for apt to install again when asked.
+if ! apt-get check >/dev/null 2>&1; then
+    apt-get -y -f install >/dev/null 2>&1
+    i=0
+    while [ $i -lt 5 ] && ! apt-get check >/dev/null 2>&1; do
+        for p in $(apt-get check 2>&1 | sed -n 's/^ \([^ :]*\(:[a-z0-9-]*\)\{0,1\}\) : .*/\1/p' | sort -u); do
+            echo "gex: removing $p, which needs a package that is not there" >&2
+            dpkg --remove --force-depends --force-remove-essential "$p" >/dev/null 2>&1
+        done
+        i=$((i + 1))
+    done
+fi
 exit 0
