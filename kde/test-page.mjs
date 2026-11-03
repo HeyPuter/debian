@@ -244,12 +244,40 @@ async function memPids() {
 }
 // KDE_INPUT: what a user does once the page is ready, steps split by ';':
 // `wait S`, `click X,Y` (page pixels; negative from the right or
-// bottom), `type TEXT`, `key NAME` (a DOM key name: Enter, Escape,
-// Tab..., or Control+LETTER), `hold CH N` (a key held for N repeats), `shot`, `profile`
+// bottom), `dblclick X,Y`, `rclick X,Y` (the right button), `move X,Y`,
+// `drag X,Y X2,Y2` (the left button held across), `scroll X,Y N` (N wheel
+// notches, down if positive), `type TEXT`, `key NAME` (a DOM key name:
+// Enter, Escape, Tab, Delete, F2..., or a chord: Control+s,
+// Control+Shift+t, Alt+F4, Shift+Delete), `hold CH N` (a key held for N
+// repeats), `mark` (a clock starts) and `at S` (wait until S seconds on
+// it: steps on a guest script's schedule, which waits would drift from as
+// each step takes its own time), `shot`, `profile`
 // (every Worker's CPU profile from now, as KDE_PROFILE_AT takes). Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
-const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 };
+let markAt = 0;
+const keyCodes = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39, Delete: 46, Home: 36, End: 35, PageUp: 33, PageDown: 34, Insert: 45, Space: 32 };
+for (let i = 1; i <= 12; i++) keyCodes[`F${i}`] = 111 + i;
+// a chord's modifiers: DevTools' modifier bit, key code and virtual key
+const modKeys = { Alt: [1, 'AltLeft', 18], Control: [2, 'ControlLeft', 17], Meta: [4, 'MetaLeft', 91], Shift: [8, 'ShiftLeft', 16] };
+// `X,Y` in page pixels, a negative one from the right or bottom edge
+async function point(arg) {
+  let [x, y] = arg.split(',').map(Number);
+  if (x < 0 || y < 0) {
+    const r = await b.send('Runtime.evaluate', { expression: '[innerWidth, innerHeight]', returnByValue: true }, s);
+    const [w, h] = r.result?.value ?? [0, 0];
+    if (x < 0) x += w;
+    if (y < 0) y += h;
+  }
+  return [x, y];
+}
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+async function press(x, y, button, clickCount) {
+  const buttons = button === 'right' ? 2 : 1;
+  await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button, buttons, clickCount }, s);
+  await pause(120);
+  await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button, buttons: 0, clickCount }, s);
+}
 // A US keyboard: each character's key, and whether it is shifted
 const plainKeys = { ' ': 'Space', '-': 'Minus', '=': 'Equal', '[': 'BracketLeft', ']': 'BracketRight', '\\': 'Backslash', ';': 'Semicolon', "'": 'Quote', '`': 'Backquote', ',': 'Comma', '.': 'Period', '/': 'Slash' };
 const shiftedKeys = { '_': 'Minus', '+': 'Equal', '{': 'BracketLeft', '}': 'BracketRight', '|': 'Backslash', ':': 'Semicolon', '"': 'Quote', '~': 'Backquote', '<': 'Comma', '>': 'Period', '?': 'Slash', ')': 'Digit0', '!': 'Digit1', '@': 'Digit2', '#': 'Digit3', '$': 'Digit4', '%': 'Digit5', '^': 'Digit6', '&': 'Digit7', '*': 'Digit8', '(': 'Digit9' };
@@ -264,6 +292,8 @@ async function step(st) {
   const [op, ...rest] = st.split(' '); const arg = rest.join(' ');
   log(`input: ${st}`);
   if (op === 'wait') { stepAt = Date.now() + Number(arg) * 1000; return; }
+  if (op === 'mark') { markAt = Date.now(); return; }
+  if (op === 'at') { stepAt = markAt + Number(arg) * 1000; return; }
   // `profile`: profileAll from here, in the background (KDE_PROFILE_SECS)
   if (op === 'profile') { profileAll(`${((Date.now() - t0) / 1000).toFixed(0)}`).catch((e) => log(`profile: ${e}`)); return; }
   if (op === 'click') {
@@ -282,6 +312,32 @@ async function step(st) {
     await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 }, s);
     await new Promise((r) => setTimeout(r, 150));
     await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 }, s);
+  } else if (op === 'dblclick' || op === 'rclick' || op === 'move') {
+    const [x, y] = await point(arg);
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+    await pause(200);
+    if (op === 'rclick') await press(x, y, 'right', 1);
+    if (op === 'dblclick') { await press(x, y, 'left', 1); await pause(80); await press(x, y, 'left', 2); }
+  } else if (op === 'drag') {
+    // pressed, moved there in steps (a drag starts past a threshold, and
+    // its target sees the pointer arrive), held a moment, released
+    const [from, to] = rest;
+    const [x, y] = await point(from), [x2, y2] = await point(to);
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, s);
+    await pause(200);
+    await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 }, s);
+    for (let i = 1; i <= 20; i++) {
+      await pause(50);
+      await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + ((x2 - x) * i) / 20, y: y + ((y2 - y) * i) / 20, button: 'left', buttons: 1 }, s);
+    }
+    await pause(500);
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x2, y: y2, button: 'left', buttons: 0, clickCount: 1 }, s);
+  } else if (op === 'scroll') {
+    const [x, y] = await point(rest[0]);
+    for (let i = 0; i < Math.abs(Number(rest[1] ?? 1)); i++) {
+      await b.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY: Math.sign(Number(rest[1] ?? 1)) * 100 }, s);
+      await pause(100);
+    }
   } else if (op === 'type') {
     for (const ch of arg) {
       // the compositor maps KeyboardEvent.code (a key, not a character), so
@@ -294,13 +350,25 @@ async function step(st) {
       if (shift) await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 }, s);
       await new Promise((r) => setTimeout(r, 80));
     }
-  } else if (op === 'key' && /^Control\+[a-z]$/.test(arg)) {
-    // `key Control+s`: a letter with Control held
-    const ch = arg.slice(-1); const code = `Key${ch.toUpperCase()}`; const vk = ch.toUpperCase().charCodeAt(0);
-    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, modifiers: 2 }, s);
-    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: ch, code, windowsVirtualKeyCode: vk, modifiers: 2 }, s);
-    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code, windowsVirtualKeyCode: vk, modifiers: 2 }, s);
-    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17 }, s);
+  } else if (op === 'key' && /^((Alt|Control|Meta|Shift)\+)+[^+]+$/.test(arg)) {
+    // `key Control+Shift+t`: the modifiers pressed in order, the key, and
+    // released in reverse
+    const parts = arg.split('+'); const last = parts.pop();
+    let mods = 0;
+    for (const m of parts) {
+      const [bit, code, vk] = modKeys[m]; mods |= bit;
+      await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: m, code, windowsVirtualKeyCode: vk, modifiers: mods }, s);
+    }
+    const one = last.length === 1;
+    const code = one ? keyOf(last.toLowerCase())[0] : last;
+    const vk = one ? last.toUpperCase().charCodeAt(0) : (keyCodes[last] ?? 0);
+    const key = one && mods & 8 ? last.toUpperCase() : last;
+    await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, windowsVirtualKeyCode: vk, modifiers: mods }, s);
+    await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk, modifiers: mods }, s);
+    for (const m of parts.reverse()) {
+      const [bit, code, vk] = modKeys[m]; mods &= ~bit;
+      await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: m, code, windowsVirtualKeyCode: vk, modifiers: mods }, s);
+    }
   } else if (op === 'key') {
     const vk = keyCodes[arg] ?? 0;
     await b.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: arg, code: arg, windowsVirtualKeyCode: vk, ...(arg === 'Enter' ? { text: '\r' } : {}) }, s);

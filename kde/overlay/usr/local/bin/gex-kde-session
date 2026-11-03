@@ -162,11 +162,17 @@ else
          [ "$db" -nt "$mark" ] && { echo "gex-kde-session: ksycoca rebuilt at session start"; break; }
      done) &
 fi
+# The global shortcuts' daemon started with the bus, ahead of KWin: its only
+# start is an autostart entry of the last phase (a systemd unit on a systemd
+# login, and no D-Bus activation), so KWin's shortcuts (Alt+Tab, Alt+F4,
+# Meta) were asked for before it ran and never had keys (root's autostart
+# override keeps that entry from starting a second)
+kga=$(echo /usr/lib/*/libexec/kglobalacceld)
 # GEX_KDE_DBUS_LOG=FILE (debugging): every session bus message, timed
 if [ -n "${GEX_KDE_DBUS_LOG:-}" ]; then
     export GEX_KDE_DBUS_LOG
     exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c \
-        'dbus-monitor --session > "$GEX_KDE_DBUS_LOG" 2>&1 & exec startplasma-x11'
+        'dbus-monitor --session > "$GEX_KDE_DBUS_LOG" 2>&1 & '"$kga"' & exec startplasma-x11'
 fi
 # GEX_KDE_LAUNCH=CMD (timing): CMD started in the session twice, as a
 # person would from the launcher: GEX_KDE_LAUNCH_AFTER seconds (default 90)
@@ -176,7 +182,7 @@ fi
 if [ -n "${GEX_KDE_LAUNCH:-}" ]; then
     export GEX_KDE_LAUNCH GEX_KDE_LAUNCH_AFTER
     # (bash where there is one, for its clock)
-    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- "$(command -v bash || echo sh)" -c '
+    exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- "$(command -v bash || echo sh)" -c "$kga"' &
         (until [ "$(xprop -root _NET_ACTIVE_WINDOW 2>/dev/null | sed "s/.* //")" != 0x0 ] && xprop -root _NET_ACTIVE_WINDOW >/dev/null 2>&1; do sleep 2; done
          sleep "${GEX_KDE_LAUNCH_AFTER:-90}"
          for k in 1 2; do
@@ -186,4 +192,5 @@ if [ -n "${GEX_KDE_LAUNCH:-}" ]; then
          done) &
         exec startplasma-x11'
 fi
-exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf startplasma-x11
+exec dbus-run-session --config-file=/etc/dbus-1/gex-session.conf -- sh -c \
+    "$kga"' & exec startplasma-x11'

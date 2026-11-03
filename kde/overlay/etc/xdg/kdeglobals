@@ -3,3 +3,12 @@
 # screen's button)
 [KDE Action Restrictions][$i]
 action/lock_screen=false
+
+# No Mouse or Touchpad page: the page's X server (Xwayland) has neither
+# libinput's driver nor evdev's or synaptics' for them to configure, so Mouse
+# was its error ("Not able to select appropriate backend") over controls
+# that do nothing, and Touchpad, finding no backend, took System Settings
+# down with it (killed, status 137)
+[KDE Control Module Restrictions][$i]
+kcm_mouse=false
+kcm_touchpad=false

@@ -1,0 +1,7 @@
+# Started by gex-kde-session ahead of KWin, which asks it for its shortcuts
+# first: not again in the last autostart phase
+[Desktop Entry]
+Type=Application
+Name=Global Shortcuts
+Exec=/usr/lib/wasm32-linux-musl/libexec/kglobalacceld
+Hidden=true

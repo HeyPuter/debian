@@ -40,24 +40,48 @@ def bus_run(script, wait):
     return (f"type mkdir -p {SERVICES} && echo {b} | base64 -d | gunzip > /root/rs.sh && "
             f"printf '[D-BUS Service]\\nName=org.kp.rs\\nExec=/bin/bash /root/rs.sh\\n' > {SERVICES}/org.kp.rs.service && "
             "dbus-send --session --type=method_call --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ReloadConfig && "
-            f"dbus-send --session --type=method_call --dest=org.kp.rs / org.kp.rs.Go;key Enter;wait {wait};shot")
+            f"dbus-send --session --type=method_call --dest=org.kp.rs / org.kp.rs.Go;key Enter;mark;wait {wait};shot")
 
 
-def kcm(first=None):
-    kcms = KCMS[KCMS.index(first):] if first else KCMS
-    s = TITLE + f'''first=1
+def kcm(first=None, last=None):
+    kcms = KCMS[KCMS.index(first) if first else 0:KCMS.index(last) + 1 if last else None]
+    # In chunks of 18: a script the session bus starts has its output read
+    # until the bus's activation timeout (15 minutes, as it never takes a
+    # name), and loses it then ("date: write error"). Each chunk's script
+    # ends its systemsettings, so the next is typed into Konsole again.
+    steps = [f"wait 20;{KONSOLE}"]
+    for c in range(0, len(kcms), 18):
+        steps.append(kcm_chunk(kcms[c:c + 18]))
+    return ';'.join(steps)
+
+
+def kcm_chunk(kcms):
+    # On a clock from the script's start: module i at 60 + 40 i seconds
+    # (the first, which starts systemsettings, at 0), its title 32 s into
+    # its turn (85 s for the first), and a screenshot from here a few
+    # seconds after that (the script starts a few seconds after its Enter)
+    s = TITLE + f'''t0=$(date +%s); i=0
+until_() {{ while [ $(date +%s) -lt $1 ]; do sleep 1; done; }}
 for k in {' '.join(kcms)}; do
+  if [ $i = 0 ]; then at=$t0; end=$((t0 + 85)); else at=$((t0 + 60 + 40 * i)); end=$((at + 32)); fi
+  until_ $at
   echo "rs: == $k"
   systemsettings $k 2>&1 | sed "s/^/rs: [$k] /" &
-  if [ $first = 1 ]; then sleep 90; first=0; else sleep 22; fi
+  until_ $end
   echo "rs: -- $k title: $(title)"
+  i=$((i + 1))
 done
+# quit as its menu's Quit does (a pkill left the window up in the page),
+# so Konsole is the active window again for the next chunk's command
+qdbus6 org.kde.systemsettings /MainApplication org.qtproject.Qt.QCoreApplication.quit
+sleep 5
 pkill -x systemsettings
 echo "rs: done"
 '''
-    # a module's turn takes about 33 s in all (its 22 s, the window's title
-    # and the next one's start)
-    return f"wait 20;{KONSOLE};" + bus_run(s, 90 + 36 * len(kcms) + 30)
+    # on the clock from the Enter (the script starts a second or two later)
+    ends = [88] + [60 + 40 * i + 36 for i in range(1, len(kcms))]
+    shots = ';'.join(f'at {t};shot' for t in ends)
+    return bus_run(s, 2) + ';' + shots + f';at {ends[-1] + 25}'
 
 
 def apps():
