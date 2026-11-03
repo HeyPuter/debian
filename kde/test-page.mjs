@@ -228,6 +228,37 @@ function smaps() {
     appendFileSync(join(OUT, 'smaps.txt'), `${((Date.now() - t0) / 1000).toFixed(1)} renderer ${r[1]} rss ${total.toFixed(0)} MiB; ${big.length} mappings >= 16 MiB: ${big.slice(0, 40).map((m) => `${m.rss.toFixed(0)}/${m.size >= 1024 ? (m.size / 1024).toFixed(0) + 'G' : m.size.toFixed(0) + 'M'}${m.name === 'anon' ? '' : ' ' + m.name.split('/').pop()}`).join(' ')}\n`);
   } catch (e) { appendFileSync(join(OUT, 'smaps.txt'), `smaps: ${e.message}\n`); }
 }
+// KDE_CPU=MS: every MS ms, each browser thread's CPU so far (user+sys clock
+// ticks from /proc/PID/task/TID/stat), the threads that moved since the last
+// sample, as lines of OUT/cpu.jsonl: {"t": seconds, "th": {"PID/TID": [name, ticks]}}.
+// Real CPU per thread, where a V8 sampled profile inflates gex's time.
+if (process.env.KDE_CPU) {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const last = new Map(); let tids = [], listedAt = 0;
+  const tree = () => {
+    const kids = new Map();
+    for (const p of readdirSync('/proc')) {
+      if (!/^\d+$/.test(p)) continue;
+      try { const st = readFileSync(`/proc/${p}/stat`, 'utf8'); const pp = st.slice(st.lastIndexOf(')') + 2).split(' ')[1]; if (!kids.has(pp)) kids.set(pp, []); kids.get(pp).push(p); } catch {}
+    }
+    const out = [], todo = [String(chrome.pid)];
+    while (todo.length) { const p = todo.pop(); out.push(p); todo.push(...(kids.get(p) ?? [])); }
+    return out.flatMap((p) => { try { return readdirSync(`/proc/${p}/task`).map((t) => `${p}/${t}`); } catch { return []; } });
+  };
+  setInterval(() => {
+    const now = Date.now();
+    if (now - listedAt > 2000) { tids = tree(); listedAt = now; }
+    const th = {};
+    for (const k of tids) {
+      try {
+        const st = readFileSync(`/proc/${k.split('/')[0]}/task/${k.split('/')[1]}/stat`, 'utf8');
+        const r = st.slice(st.lastIndexOf(')') + 2).split(' '), ticks = Number(r[11]) + Number(r[12]);
+        if (last.get(k) !== ticks) { last.set(k, ticks); th[k] = [st.slice(st.indexOf('(') + 1, st.lastIndexOf(')')), ticks]; }
+      } catch {}
+    }
+    appendFileSync(join(OUT, 'cpu.jsonl'), JSON.stringify({ t: +((now - t0) / 1000).toFixed(2), th }) + '\n');
+  }, Number(process.env.KDE_CPU)).unref();
+}
 async function memPids() {
   const rows = await Promise.all([...workers.entries()].map(async ([sid, w]) => {
     const [h, r] = await Promise.all([
