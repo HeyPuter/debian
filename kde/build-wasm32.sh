@@ -21,6 +21,13 @@
 # OURS_FOR=PKG,...: these of ours replace Debian's of the same name even
 # where Debian's is an arm64 program (Konsole as wasm32 in an otherwise
 # arm64 Plasma), with the libraries they load
+#
+# KDE_NATIVE=1: the image for a session under gexc natively
+# (kde/run-native.sh), which has no page to give it an X server: Debian's
+# Xwayland is in it (leave-out.txt's xwayland line does not apply), with the
+# arm64 libraries it loads. Xwayland runs without glamor (the session's
+# XWAYLAND_NO_GLAMOR), so they are only what it links: Konsole and Plasma
+# draw in software, as in the page.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
@@ -40,7 +47,7 @@ rm -rf "$O/pool"
 python3 -I "$ROOT/debian/shlibdeps.py" "$O/pool" "$@"
 roots=$(grep -v '^#' "$HERE/roots.txt" | grep . | paste -sd,)
 # what the image leaves out in both forms (leave-out.txt)
-leave=$(grep -v '^#' "$HERE/leave-out.txt" | cut -d'|' -f1 | awk 'NF {print $1}' | paste -sd,)
+leave=$(grep -v '^#' "$HERE/leave-out.txt" | cut -d'|' -f1 | awk -v native="${KDE_NATIVE:-0}" 'NF && !(native == 1 && $1 == "xwayland") {print $1}' | paste -sd,)
 python3 -I "$ROOT/debian/mkrootfs.py" --pool "$O/pool" --cache "$CACHE" --out "$O/tree" --extra "$roots" --ours-closure --native-ours --apt-notes "$HERE/apt-notes.txt" --leave-out "$leave" --path-exclude "$HERE/path-exclude.txt" ${OURS_FOR:+--ours-for "$OURS_FOR"} ${REPO_URL:+--repo-url "$REPO_URL" --repo-out "$O/repo"}
 # gexcc's libc.so, which its shared programs and libraries (GEXCC_SHARED,
 # as xbuild.py builds them) load: no Debian package has it

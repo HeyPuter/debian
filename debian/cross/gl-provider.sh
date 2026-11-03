@@ -11,7 +11,9 @@
 # gex-gl-dev (headers, .pc files, the unversioned .so links). They provide
 # the names Build-Depends uses: libgl-dev, libgles-dev, libegl-dev,
 # libopengl-dev, libglx-dev, libgbm-dev, libglvnd-dev and the runtime
-# libraries' names. GBM has no driver behind it in gex: libgbm.so.1 has every
+# libraries' names. gex-gl is Multi-Arch: same, as Debian's libgl1 and
+# libgbm1 are: what it provides is for our programs, and an arm64 program
+# that needs libgbm1 (Debian's Xwayland, in the native image) gets Debian's. GBM has no driver behind it in gex: libgbm.so.1 has every
 # gbm.h function, and gbm_create_device answers NULL (so a KMS platform
 # plugin builds, and reports no device at run time).
 set -eu
@@ -75,6 +77,7 @@ cat > "$T/lib/DEBIAN/control" <<EOF
 Package: gex-gl
 Version: $VER
 Architecture: musl-linux-wasm32
+Multi-Arch: same
 Maintainer: debdemo
 Provides: $(echo "$names" | sed 's/, */ (= 99), /g; s/$/ (= 99)/')
 Section: libs
