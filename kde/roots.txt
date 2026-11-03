@@ -12,6 +12,9 @@ konsole
 kate
 dbus
 fonts-hack
+# colour emoji (the Emoji Selector, and emoji in any text): in the rest
+# bundle, as nothing before the desktop draws one
+fonts-noto-color-emoji
 # zoneinfo: the session is set to the visitor's zone at boot (gex-kde-session)
 tzdata
 breeze-icon-theme
