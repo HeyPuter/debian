@@ -126,6 +126,12 @@ b.on('Runtime.consoleAPICalled', (p, sid) => {
 b.on('Runtime.exceptionThrown', (p) => log(`exception: ${p.exceptionDetails?.exception?.description?.slice(0, 400)}`));
 await b.send('Runtime.enable', {}, s);
 await b.send('Page.enable', {}, s);
+// KDE_GLOBALS=NAME=VALUE;...: page globals set before the page's own
+// scripts run (debug switches read only from globals, as GEX_ADOPT_TRACE)
+if (process.env.KDE_GLOBALS) {
+  const set = process.env.KDE_GLOBALS.split(';').map((kv) => kv.split('=')).map(([k, v]) => `globalThis[${JSON.stringify(k)}] = ${JSON.stringify(v ?? '1')};`).join(' ');
+  await b.send('Page.addScriptToEvaluateOnNewDocument', { source: set }, s);
+}
 // a tab that dies (out of memory, a renderer crash) answers nothing again:
 // said, with the browser's last words, rather than waited on for ever
 b.on('Inspector.targetCrashed', (p, sid) => { if (sid === s) { log(`FAIL the page crashed: ${stderr.slice(-1500)}`); process.exit(1); } });
