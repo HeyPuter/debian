@@ -28,6 +28,18 @@ path-exclude=/usr/share/sounds/Oxygen-*
 # session is started from pid 1)
 path-exclude=/usr/bin/kwin_wayland
 path-exclude=/usr/lib/systemd/systemd-*
+# and their D-Bus stubs: systemd's daemons (logind, timedated, hostnamed,
+# localed, networkd, systemd itself) are started on the system bus
+# (gex-kde-session's) only through systemd (Exec=/bin/false,
+# SystemdService=). A stub listed as activatable sends a client to a
+# service that cannot start: the Date & Time settings saved through
+# timedated, which fails, rather than their own KAuth helper.
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.login1.service
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.timedate1.service
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.hostname1.service
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.locale1.service
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.network1.service
+path-exclude=/usr/share/dbus-1/system-services/org.freedesktop.systemd1.service
 # and systemd itself with its generators and command-line tools, which talk
 # to a running systemd. sysusers and tmpfiles stay (packages' maintainer
 # scripts run them). No library is left out this way: a package apt

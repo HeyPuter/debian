@@ -38,6 +38,10 @@ ncurses-bin
 sysvinit-utils
 procps
 less
+# useradd, usermod, chpasswd: what System Settings' Users page runs
+# (through AccountsService), and what a package apt installs runs to make
+# its system user
+passwd
 # natively only: the X server is Debian's, in the guest (the page has its own)
 xwayland
 x11-xkb-utils

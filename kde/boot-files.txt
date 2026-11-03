@@ -14,3 +14,33 @@
 # debian/apt-hooks.sh's usr/lib/gex/apt-heal before a recorded run had it):
 # it reads dpkg's status, with grep, ls and dash (already first)
 /usr/lib/gex/apt-heal
+#
+# The system bus gex-kde-session starts (before a recorded run had it): its
+# configuration, the policies and service files dbus-daemon reads as it
+# starts, and root's autostart override for polkit's agent
+/etc/dbus-1/gex-system.conf
+/usr/share/dbus-1/system.conf
+/usr/share/dbus-1/system.d/org.freedesktop.Accounts.conf
+/usr/share/dbus-1/system.d/org.freedesktop.hostname1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.locale1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.locale1.read-only.conf
+/usr/share/dbus-1/system.d/org.freedesktop.login1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.network1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.PolicyKit1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.systemd1.conf
+/usr/share/dbus-1/system.d/org.freedesktop.timedate1.conf
+/usr/share/dbus-1/system.d/org.kde.fontinst.conf
+/usr/share/dbus-1/system.d/org.kde.kcontrol.kcmclock.conf
+/usr/share/dbus-1/system.d/org.kde.kf6auth.conf
+/usr/share/dbus-1/system.d/org.kde.ksysguard.processlisthelper.conf
+/usr/share/dbus-1/system.d/org.kde.ktexteditor6.katetextbuffer.conf
+/usr/share/dbus-1/system.d/org.kde.localegenhelper.conf
+/usr/share/dbus-1/system-services/org.freedesktop.Accounts.service
+/usr/share/dbus-1/system-services/org.freedesktop.PolicyKit1.service
+/usr/share/dbus-1/system-services/org.kde.fontinst.service
+/usr/share/dbus-1/system-services/org.kde.kcontrol.kcmclock.service
+/usr/share/dbus-1/system-services/org.kde.ksysguard.processlisthelper.service
+/usr/share/dbus-1/system-services/org.kde.ktexteditor6.katetextbuffer.service
+/usr/share/dbus-1/system-services/org.kde.localegenhelper.service
+/root/.config/autostart/polkit-kde-authentication-agent-1.desktop
+/usr/bin/dbus-daemon

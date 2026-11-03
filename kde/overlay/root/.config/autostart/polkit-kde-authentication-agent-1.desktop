@@ -1,0 +1,8 @@
+# Not started (gex-kde-session's system bus): polkit's agent registers for a
+# logind session, which there is none of ("No session for pid"), and it is
+# only for asking a user's password, which polkitd never asks root.
+[Desktop Entry]
+Type=Application
+Name=PolicyKit Authentication Agent
+Exec=/usr/lib/wasm32-linux-musl/libexec/polkit-kde-authentication-agent-1
+Hidden=true
