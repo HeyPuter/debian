@@ -170,7 +170,7 @@
 // `?wisp=wss://.../` names another; an empty `?wisp=` leaves the guest
 // offline. Any other parameter is a runtime switch.
 const q = new URLSearchParams(location.search);
-const PAGE_PARAMS = ['log', 'size', 'wisp', 'tz', 'launch'];
+const PAGE_PARAMS = ['log', 'size', 'wisp', 'tz', 'launch', 'fs'];
 const $ = (id) => document.getElementById(id);
 // times in ms from the navigation (performance.now()'s origin)
 globalThis.__kde = { phase: 'loading', out: '', early: () => [...early.values()].reduce((a, e) => a + e.got, 0) };
@@ -302,6 +302,10 @@ async function launch() {
     app = await start({
       container: $('desk'),
       size: q.get('size') || 'fit',
+      // A fresh desktop every visit: the tree in memory. ?fs=opfs keeps the
+      // root in the browser's origin storage instead, so a second visit
+      // starts from what the first left.
+      filesystem: q.get('fs') === 'opfs' ? { kind: 'opfs', name: 'kde' } : 'memory',
       debug: Object.fromEntries([...q].filter(([k]) => !PAGE_PARAMS.includes(k))),
       ...(wisp ? { wisp } : {}),
       baseUrl: new URL('./', location.href),
