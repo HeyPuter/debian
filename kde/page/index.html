@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KDE Plasma in the Browser</title>
 <meta name="description" content="A real Debian userland with the KDE Plasma desktop, compiled to WebAssembly and running in this browser tab on gex. Nothing to install.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Puter Labs">
+<meta property="og:title" content="KDE Plasma in the Browser">
+<meta property="og:description" content="A real Debian userland with the KDE Plasma desktop, compiled to WebAssembly and running in this browser tab on gex. Nothing to install.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="KDE Plasma in the Browser">
+<meta name="twitter:description" content="A real Debian userland with the KDE Plasma desktop, compiled to WebAssembly and running in this browser tab on gex. Nothing to install.">
 <meta name="theme-color" content="#ffffff">
 <meta name="color-scheme" content="light">
 <style>
@@ -33,8 +40,6 @@
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px;
     border-bottom: 1px solid rgba(228,231,235,.7); background: rgba(255,255,255,.7);
     backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
-  .brand svg { width: 26px; height: 26px; display: block; }
   .chip { padding: 2px 9px; border-radius: 999px; background: rgba(29,153,243,.1); color: var(--accent-ink);
     font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
   .stack { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -97,14 +102,33 @@
   .shot img { display: block; width: 100%; height: auto; aspect-ratio: 1280 / 623; background: #2a2e32; }
   .shot figcaption { padding: 10px 14px; color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); }
 
-  footer { padding: 0 28px 20px; color: var(--faint); font-size: 12px; text-align: center; }
+  /* Puter Labs, as on Puter's other Labs demos: the mark and its badge in the bar */
+  .puter { display: flex; align-items: center; gap: 10px; }
+  .puter img { display: block; height: 30px; width: auto; }
+  .puter a { display: inline-flex; align-items: center; gap: 7px; color: #333; font-size: 16px; font-weight: 600;
+    letter-spacing: -.01em; text-decoration: none; transition: opacity .15s ease; }
+  .puter a:hover { opacity: .7; }
+  .labs { padding: 2px 8px; border-radius: 999px; background: rgba(29,73,231,.09); color: #1d49e7;
+    font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .product { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .product svg { width: 30px; height: 30px; display: block; }
+  /* the credit: over the landing page and, after it, the desktop (only its link takes clicks) */
+  .credit { position: fixed; z-index: 50; bottom: 14px; left: 50%; transform: translateX(-50%); height: 25px;
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid rgba(209,213,219,.55);
+    border-radius: 999px; background: rgba(255,255,255,.82); backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%); color: #6b7280; font-size: 11.5px; font-weight: 500;
+    line-height: 1; white-space: nowrap; user-select: none; pointer-events: none; }
+  .credit a { color: #111827; font-weight: 600; text-decoration: none; transition: color .15s ease; pointer-events: auto; }
+  .credit a:hover, .credit a:focus-visible { color: var(--accent-ink); }
+  .credit a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  footer { padding: 0 28px 52px; color: var(--faint); font-size: 12px; text-align: center; }
 
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; gap: 36px; padding: 32px 16px 48px; }
     .bar { padding: 12px 16px; }
     .stack { display: none; }
     .launch { max-width: none; }
-    footer { padding: 0 16px 16px; }
+    footer { padding: 0 16px 48px; }
   }
   @media (prefers-reduced-motion: reduce) { .go, .track.wait .fill { animation: none; } }
 </style>
@@ -113,15 +137,19 @@
 <div id="desk"></div>
 <section id="landing">
   <header class="bar">
-    <div class="brand">
-      <!-- the Plasma logo, as Breeze's start-here-kde-plasma draws it -->
-      <svg viewBox="390 488.5 53 53.5" aria-hidden="true"><path d="m425.24 489.13-6 6 11.33 11.33-11.33 11.33 6 6 17.33-17.33z" fill="#3b3f42" fill-rule="evenodd"/><rect x="399.9" y="489.8" width="6.67" height="6.67" rx="3.33" fill="#fa8865"/><rect x="390.57" y="509.13" width="9.33" height="9.33" rx="4.67" fill="#63c605"/><rect x="403.9" y="528.46" width="13.33" height="13.33" rx="6.67" fill="#1b89f3"/></svg>
-      KDE Plasma <span class="chip">in the browser</span>
+    <div class="puter">
+      <a href="https://puter.com" target="_blank" rel="noreferrer" aria-label="Puter"><img src="data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22utf-8%22%3F%3E%3Csvg%20x%3D%220px%22%20y%3D%220px%22%20width%3D%2248px%22%20height%3D%2248px%22%20viewBox%3D%220%200%2048%2048%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20stroke-width%3D%222%22%20transform%3D%22matrix(0%2C%201%2C%20-1%2C%200%2C%2047.999504%2C%200.000014)%22%3E%3Cpolyline%20points%3D%2239%2024%2025%2024%2025%2028%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Cpolyline%20points%3D%2235.879%2010.121%2032%2014%2025%2014%2025%2018%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Cpath%20d%3D%22M13%2C26a10.29%2C10.29%2C0%2C0%2C1-7.2-3%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Cpath%20d%3D%22M17%2C31.6A5.826%2C5.826%2C0%2C0%2C1%2C13%2C26a5.731%2C5.731%2C0%2C0%2C1%2C2-4.4%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Cpath%20d%3D%22M35.879%2C37.879%2C32%2C34H25v2A9.9%2C9.9%2C0%2C0%2C1%2C15%2C46%2C9.9%2C9.9%2C0%2C0%2C1%2C5%2C36a9.058%2C9.058%2C0%2C0%2C1%2C.6-3.2A5.627%2C5.627%2C0%2C0%2C1%2C3%2C28a5.888%2C5.888%2C0%2C0%2C1%2C2.8-5A9.994%2C9.994%2C0%2C0%2C1%2C3%2C16%2C9.9%2C9.9%2C0%2C0%2C1%2C13%2C6h.4A5.826%2C5.826%2C0%2C0%2C1%2C19%2C2a5.893%2C5.893%2C0%2C0%2C1%2C6%2C6%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Ccircle%20cx%3D%2238%22%20cy%3D%228%22%20r%3D%223%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20data-color%3D%22color-2%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Ccircle%20cx%3D%2242%22%20cy%3D%2224%22%20r%3D%223%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20data-color%3D%22color-2%22%20stroke-linejoin%3D%22miter%22%2F%3E%3Ccircle%20cx%3D%2238%22%20cy%3D%2240%22%20r%3D%223%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-linecap%3D%22square%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%222%22%20data-color%3D%22color-2%22%20stroke-linejoin%3D%22miter%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" alt="Puter" height="30"></a>
+      <a href="https://developer.puter.com/" target="_blank" rel="noreferrer">Puter <span class="labs">Labs</span></a>
     </div>
     <div class="stack"><span>Debian 13</span><span>KDE Plasma 6</span><span>WebAssembly</span><span>gex</span></div>
   </header>
   <main>
     <div>
+      <div class="product">
+        <!-- the Plasma logo, as Breeze's start-here-kde-plasma draws it -->
+        <svg viewBox="390 488.5 53 53.5" aria-hidden="true"><path d="m425.24 489.13-6 6 11.33 11.33-11.33 11.33 6 6 17.33-17.33z" fill="#3b3f42" fill-rule="evenodd"/><rect x="399.9" y="489.8" width="6.67" height="6.67" rx="3.33" fill="#fa8865"/><rect x="390.57" y="509.13" width="9.33" height="9.33" rx="4.67" fill="#63c605"/><rect x="403.9" y="528.46" width="13.33" height="13.33" rx="6.67" fill="#1b89f3"/></svg>
+        KDE Plasma <span class="chip">in the browser</span>
+      </div>
       <p class="kicker">A whole desktop, in this tab</p>
       <h1>The <b>KDE Plasma</b> desktop, running in your browser</h1>
       <p class="copy">A real Debian userland with KDE Plasma, compiled to WebAssembly and run by gex, right here in the page. Nothing to install and no server doing the work: it runs on your machine.</p>
@@ -152,6 +180,7 @@
   </main>
   <footer>Debian and KDE are trademarks of their respective owners. This demo is not affiliated with either project.</footer>
 </section>
+<div class="credit"><span>Brought to you by</span><a href="https://developer.puter.com" target="_blank" rel="noreferrer">Puter</a></div>
 <script type="module">
 // The Debian KDE session, booted straight to the desktop: bash runs
 // gex-kde-session (the tree's /usr/local/bin), which starts startplasma-x11
