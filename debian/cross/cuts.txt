@@ -133,6 +133,7 @@ glib2.0   patch 0001-no-weak-lsan-on-wasm.patch | an undefined weak function who
 # Source patches where C calls a function through a pointer of another type
 # (wasm checks an indirect call's type and traps)
 libxt     patch 0001-resconfig-eh-four-args.patch | Create.c registers the three-argument _XtResourceConfigurationEH as a four-argument XtEventHandler: every Xt program trapped at its shell's first PropertyNotify | nothing (the handler takes the fourth argument, unused)
+kf6-ki18n patch 0001-iso-codes-runtime-prefix.patch | gexcc's cross pkg-config gives iso-codes' prefix under the sysroot, and config.h and config-localedata.h compiled that build-machine path in as where iso-codes is at run time (the release leak check's one hit, in libKF6I18nLocaleData) | nothing (the build still reads the sysroot's JSON)
 x11-utils patch 0001-xfontsel-free-font-names-work-piece.patch | xfontsel schedules XFreeFontNames (it returns an int) as a void work piece | nothing (a void work piece calls it)
 
 libjpeg-turbo cut default-jdk             | a JDK for the Java binding, which debian/rules builds only on its JAVA_ARCHS (wasm32 is not one) | nothing (libturbojpeg-java is Arch: all, not built here)

@@ -1,0 +1,56 @@
+A cross build's pkg-config gives iso-codes' prefix under the sysroot
+(gexcc's sets PKG_CONFIG_SYSROOT_DIR, and pkgconf applies it to
+--variable=prefix). The build reads the JSON files there, rightly, but
+config.h and config-localedata.h compiled the same path in as where the
+program finds them at run time: a path of the build machine in
+libKF6I18nLocaleData. The run-time prefix is that one less the sysroot.
+
+diff -ru a/src/i18n/CMakeLists.txt b/src/i18n/CMakeLists.txt
+--- a/src/i18n/CMakeLists.txt	2026-11-04 03:34:51.993147119 -0500
++++ b/src/i18n/CMakeLists.txt	2026-11-04 03:34:52.092147281 -0500
+@@ -3,6 +3,9 @@
+ else()
+     set(HAVE_STATIC_KTRANSCRIPT OFF)
+ endif()
++# where iso-codes is at run time: a cross build's pkg-config gives its
++# prefix under the sysroot, which the build itself reads from
++string(REGEX REPLACE "^${CMAKE_SYSROOT}" "" IsoCodes_RUNTIME_PREFIX "${IsoCodes_PREFIX}")
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/config.h")
+ 
+ add_library(KF6I18n)
+diff -ru a/src/i18n/config.h.in b/src/i18n/config.h.in
+--- a/src/i18n/config.h.in	2026-11-04 03:34:51.993147119 -0500
++++ b/src/i18n/config.h.in	2026-11-04 03:34:52.092147281 -0500
+@@ -9,7 +9,7 @@
+ 
+ #cmakedefine01 HAVE_NL_MSG_CAT_CNTR
+ 
+-#define INSTALLED_LOCALE_PREFIX "@IsoCodes_PREFIX@"
++#define INSTALLED_LOCALE_PREFIX "@IsoCodes_RUNTIME_PREFIX@"
+ 
+ #cmakedefine01 HAVE_STATIC_KTRANSCRIPT
+ 
+diff -ru a/src/localedata/CMakeLists.txt b/src/localedata/CMakeLists.txt
+--- a/src/localedata/CMakeLists.txt	2026-11-04 03:34:51.995147122 -0500
++++ b/src/localedata/CMakeLists.txt	2026-11-04 03:34:52.092147281 -0500
+@@ -3,6 +3,9 @@
+ 
+ option(KI18N_EMBEDDED_ISO_CODES_CACHE "Use compiled-in iso-codes data." OFF)
+ 
++# where iso-codes is at run time: a cross build's pkg-config gives its
++# prefix under the sysroot, which the build itself reads from
++string(REGEX REPLACE "^${CMAKE_SYSROOT}" "" IsoCodes_RUNTIME_PREFIX "${IsoCodes_PREFIX}")
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config-localedata.h.in" "${CMAKE_CURRENT_BINARY_DIR}/config-localedata.h")
+ add_subdirectory(cachegen)
+ 
+diff -ru a/src/localedata/config-localedata.h.in b/src/localedata/config-localedata.h.in
+--- a/src/localedata/config-localedata.h.in	2026-11-04 03:34:51.995147122 -0500
++++ b/src/localedata/config-localedata.h.in	2026-11-04 03:34:52.092147281 -0500
+@@ -7,6 +7,6 @@
+ #ifndef KI18NLOCALEDATA_CONFIG_H
+ #define KI18NLOCALEDATA_CONFIG_H
+ 
+-#define ISO_CODES_PREFIX "@IsoCodes_PREFIX@"
++#define ISO_CODES_PREFIX "@IsoCodes_RUNTIME_PREFIX@"
+ 
+ #endif

@@ -44,7 +44,9 @@ for name in "${names[@]}"; do
   ver=$(pin "$name")
   [ -n "$ver" ] || { echo "$name: not in packages.txt"; continue; }
   upver=${ver#*:}
-  dir=$GEXCC_DEB/src/$name-$upver
+  # the directory debsrc.py unpacks into, dpkg-source's: the upstream
+  # version, without epoch or Debian revision
+  dir=$GEXCC_DEB/src/$name-${upver%-*}
   [ -z "${KEEP:-}" ] && rm -rf "$dir"
   python3 -I "$HERE/debsrc.py" --into "$GEXCC_DEB/src" "$name=$ver" > /dev/null || { echo "FAIL fetch $name"; continue; }
   export DEST=$GEXCC_DEB/stage/$name
