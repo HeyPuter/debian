@@ -288,7 +288,9 @@ async function memPids() {
 // Control+Shift+t, Alt+F4, Shift+Delete), `hold CH N` (a key held for N
 // repeats), `mark` (a clock starts) and `at S` (wait until S seconds on
 // it: steps on a guest script's schedule, which waits would drift from as
-// each step takes its own time), `shot`, `profile`
+// each step takes its own time), `shot`, `pageshot` (the page as
+// the visitor sees it, its overlays over the desktop), `rect CSS` (where
+// the page's elements CSS selects are, in page pixels), `profile`
 // (every Worker's CPU profile from now, as KDE_PROFILE_AT takes). Each step is logged.
 const steps = (process.env.KDE_INPUT || '').split(';').map((x) => x.trim()).filter(Boolean);
 let stepAt = 0;
@@ -420,6 +422,15 @@ async function step(st) {
     for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 33)); await ev('keyDown', true); }
     await ev('keyUp', false);
   } else if (op === 'shot') await shot();
+  else if (op === 'pageshot') {
+    const name = join(OUT, `page-${String(shots++).padStart(2, '0')}.png`);
+    const { data } = await b.send('Page.captureScreenshot', { format: 'png' }, s);
+    writeFileSync(name, Buffer.from(data, 'base64'));
+    log(`screenshot ${name} (page)`);
+  } else if (op === 'rect') {
+    const r = await ev(`JSON.stringify([...document.querySelectorAll(${JSON.stringify(arg)})].map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height), getComputedStyle(e).pointerEvents]; }).concat([[innerWidth, innerHeight]]))`).catch((e) => String(e));
+    log(`rect ${arg}: ${r}`);
+  }
   else log(`input: unknown step ${op}`);
 }
 for (;;) {
