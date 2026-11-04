@@ -1,4 +1,4 @@
-# debdemo
+# debian
 
 Debian root filesystems for [gex](https://github.com/MercuryWorkshop/gex), and
 the demos built on them. gex runs them in the browser: Debian's own arm64
