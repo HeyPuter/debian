@@ -13,7 +13,9 @@
 // At `ready`, console.txt also gets the `[gex-mark]` lines `start` and
 // `desktop` (ms of the epoch), which `gexc units profile` cuts a profile at.
 // Env: CHROME (default /usr/bin/chromium), KDE_QUERY (appended to the URL;
-// launch=0, Launch pressed at once, unless it names launch=S).
+// launch=0, Launch pressed at once, unless it names launch=S), KDE_BASE (the
+// path the site is served under, default /: /labs/kde-web/ as its host serves
+// it; anything outside it is a 404, so a request that leaves it fails).
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -36,13 +38,19 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) process.on(ev, (e)
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm',
   '.json': 'application/json', '.zst': 'application/zstd' };
 let served = 0;
+const BASE = process.env.KDE_BASE || '/';
 const server = createServer((req, res) => {
-  const p = join(SITE, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+  const path = new URL(req.url, 'http://x').pathname;
+  if (!path.startsWith(BASE)) {
+    log(`outside ${BASE}: ${path}`);
+    return res.writeHead(404, { 'Cross-Origin-Resource-Policy': 'same-origin' }).end();
+  }
+  const p = join(SITE, decodeURIComponent('/' + path.slice(BASE.length)));
   const h = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp',
     'Cross-Origin-Resource-Policy': 'same-origin', 'Cache-Control': 'no-cache' };
   // A unit's files are named by their content (units/HASH/): cached for good,
   // so the processes after the first read them from the browser's cache.
-  if (/^\/units\/[0-9a-f]{64}\//.test(new URL(req.url, 'http://x').pathname)) h['Cache-Control'] = 'public, max-age=31536000, immutable';
+  if (/^\/units\/[0-9a-f]{64}\//.test('/' + path.slice(BASE.length))) h['Cache-Control'] = 'public, max-age=31536000, immutable';
   const f = existsSync(p) && statSync(p).isDirectory() ? join(p, 'index.html') : p;
   if (!f.startsWith(SITE) || !existsSync(f) || !statSync(f).isFile()) return res.writeHead(404, h).end();
   // KDE_BLOCK=REGEX: requests whose path matches are refused (404) and
@@ -73,7 +81,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 // server's own log, not "served")
 // the page waits for Launch: pressed at once (`launch=0`) unless KDE_QUERY says when
 const query = /(^|&)launch=/.test(process.env.KDE_QUERY || '') ? process.env.KDE_QUERY : ['launch=0', process.env.KDE_QUERY].filter(Boolean).join('&');
-const url = (process.env.KDE_URL || `http://127.0.0.1:${server.address().port}/`) + `?${query}`;
+const url = (process.env.KDE_URL || `http://127.0.0.1:${server.address().port}${BASE}`) + `?${query}`;
 const prof = mkdtempSync(join(tmpdir(), 'gex-kde-'));
 const port = 9400 + Math.floor(Math.random() * 500);
 const chrome = spawn(CHROME, ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu-sandbox', '--enable-unsafe-webgpu',
