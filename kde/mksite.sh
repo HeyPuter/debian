@@ -1,6 +1,6 @@
 #!/bin/bash
 # The KDE demo's web site: gex's runtime package (@gexemu/runtime, from gex's
-# page/runtime/build.sh) at rt/, with kde/page/ (index.html and its loader,
+# runtime/build.sh) at rt/, with kde/page/ (index.html and its loader,
 # kde.mjs), the session's tree as one tar, and pack.json, which names every
 # file served compressed (FILE.zst) with its sizes.
 #
@@ -57,7 +57,7 @@ if [ -d "$TAR" ]; then
     (cd "$TAR" && tar --owner=0 --group=0 --numeric-owner --sort=name ${SOURCE_DATE_EPOCH:+--mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime} -cf "$OUT/kde.tar" $(ls -A))
     TAR=$OUT/kde.tar
 fi
-[ -f "$RT/index.mjs" ] || { echo "mksite: $RT is not a runtime package (gex's page/runtime/build.sh)" >&2; exit 1; }
+[ -f "$RT/index.mjs" ] || { echo "mksite: $RT is not a runtime package (gex's runtime/build.sh)" >&2; exit 1; }
 rm -rf "$OUT/rt"; cp -a "$RT" "$OUT/rt"
 # the landing page, its loader and their files (kde/page/)
 cp -a "$HERE/page/." "$OUT/"

@@ -2,14 +2,14 @@
 # A KDE site from another one's tree, on another runtime and page: BASE's
 # session files (kde.tar.zst, the rest bundle and its list, apt/, site.json,
 # pack.json's tree entries), hard-linked, with RUNTIME_PACKAGE_DIR (gex's
-# page/runtime/build.sh) at rt/ and kde/page/. For a new gex or page without
+# runtime/build.sh) at rt/ and kde/page/. For a new gex or page without
 # building the tree again (mksite.sh does that).
 #
 #   kde/resite.sh RUNTIME_PACKAGE_DIR BASE OUT
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 RT=$(realpath "${1:?RUNTIME_PACKAGE_DIR}"); BASE=$(realpath "${2:?BASE}"); OUT=$(realpath -m "${3:?OUT}")
-[ -f "$RT/index.mjs" ] || { echo "resite: $RT is not a runtime package (gex's page/runtime/build.sh)" >&2; exit 1; }
+[ -f "$RT/index.mjs" ] || { echo "resite: $RT is not a runtime package (gex's runtime/build.sh)" >&2; exit 1; }
 [ -f "$BASE/site.json" ] && [ -f "$BASE/kde.tar.zst" ] || { echo "resite: $BASE is not a KDE site (site.json, kde.tar.zst)" >&2; exit 1; }
 rm -rf "$OUT"; mkdir -p "$OUT"
 for f in kde.tar.zst lazy.json lazy.json.zst rest.bin rest.bin.json site.json; do
