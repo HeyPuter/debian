@@ -224,10 +224,9 @@ globalThis.__kde = { phase: 'loading', out: '', early: () => [...early.values()]
 // Files the session's start fetches (pack.json's names, compressed: FILE.zst)
 // and that are fetched here first. The runtime asks for them by the same path;
 // the page's fetch answers that from what this download holds.
-const EARLY = ['kde.tar', 'gex/gex_kernel.wasm', 'gex/gex_browser.shared.wasm', 'gex/seed.shared.wasm'];
+const EARLY = ['kde.tar'];
 const early = new Map(); // URL path -> { chunks, got, done, error, wake, claimed }
 const plainFetch = globalThis.fetch.bind(globalThis);
-const sitePromise = plainFetch('site.json').then((r) => r.json());
 const packPromise = plainFetch('pack.json').then((r) => r.ok ? r.json() : {}).catch(() => ({}));
 
 function fetchEarly(path, build) {
@@ -291,7 +290,7 @@ const appModule = new Promise((resolve) => {
     for (const p of EARLY) if (files[`/${p}`]) fetchEarly(p, pack.build);
     const total = EARLY.reduce((a, p) => a + (files[`/${p}`]?.zsize ?? 0), 0);
     if (total) $('size-fact').textContent = `One download of ${Math.round(total / 1e6)} MB`;
-    resolve(import('./app.mjs'));
+    resolve(import('./kde.mjs'));
   }, 0));
 });
 
@@ -338,12 +337,19 @@ async function launch() {
   let desktopUp = false;
   let app;
   try {
-    const [{ start }, site] = await Promise.all([appModule, sitePromise]);
+    const { start } = await appModule;
     const wisp = q.has('wisp') ? q.get('wisp') : 'wss://anura.pro/';
     // The visitor's time zone by its IANA name, which gex-kde-session sets as
     // the system's (tzdata's zoneinfo is in the tree)
     let zone = q.get('tz');
     try { zone ||= Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* none */ }
+    // until the session starts: the download, as far as the early fetch has it
+    const dl = setInterval(() => {
+      if (bootAt || !total) return;
+      const now = [...early.values()].reduce((a, e) => a + e.got, 0);
+      bar(now / total);
+      $('status').textContent = `Downloading ${mb(now)} of ${mb(total)} MB`;
+    }, 250);
     app = await start({
       container: $('desk'),
       size: q.get('size') || 'fit',
@@ -353,40 +359,7 @@ async function launch() {
       filesystem: q.get('fs') === 'opfs' ? { kind: 'opfs', name: 'kde' } : 'memory',
       debug: Object.fromEntries([...q].filter(([k]) => !PAGE_PARAMS.includes(k))),
       ...(wisp ? { wisp } : {}),
-      baseUrl: new URL('./', location.href),
-      // hosts the page answers from the site's own files (mksite.sh APT_REPO:
-      // http://gex-site/ is the repository of every package of ours)
-      ...(site.pageHosts ? { pageHosts: site.pageHosts } : {}),
-      hostx: 'rootful',
-      // ready when plasmashell has loaded the desktop (gex-kde-session turns
-      // on the line), not at the X server's first frame
-      ready: 'manual',
-      build: {
-        arch: 'aarch64',
-        tar: site.tar,
-        ...(site.lazy ? { lazy: site.lazy } : {}),
-        pack: 'pack.json',
-        zstd: 'vendor/zstddec-stream.mjs',
-        exe: '/usr/bin/bash',
-        // the program's arguments, after argv[0] (app.js puts `exe` first)
-        argv: ['/usr/local/bin/gex-kde-session'],
-        env: ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HOME=/root', 'TERM=xterm-256color',
-              'LANG=C.UTF-8', 'XDG_RUNTIME_DIR=/run/user/0', 'DISPLAY=:0', ...(zone ? [`GEX_KDE_TZ=${zone}`] : []), ...(site.env ?? [])],
-        cwd: '/root',
-        // the tree's file and directory times: KService compares them with its
-        // database's, and rebuilds it (minutes) when they look newer
-        mtimes: true,
-        uid: 0,
-        size: 'fit',
-        featuresOff: [],
-        compositor: true,
-        jitFallback: true,
-        gl: false,
-        hostx: true,
-        hostxRootful: true,
-        switches: site.switches ?? {},
-        identities: site.identities ?? null,
-      },
+      env: zone ? [`GEX_KDE_TZ=${zone}`] : [],
       onLog: (s) => {
         out += s;
         globalThis.__kde.out = out;
@@ -394,13 +367,14 @@ async function launch() {
         if ($('logbox').open) { logEl.textContent = out.slice(-20000); logEl.scrollTop = logEl.scrollHeight; }
       },
       onProgress: (p) => {
-        const d = p.download;
-        if (p.phase === 'download' && d.total) {
-          bar(d.done / d.total);
-          $('status').textContent = `Downloading ${mb(d.done)} of ${mb(d.total)} MB`;
-        } else if (p.phase === 'boot' || p.phase === 'compile') {
-          if (!bootAt) { bootAt = performance.now(); globalThis.__kde.bootMs = Math.round(bootAt); step(1); bar(null); timer = setInterval(tick, 500); tick(); }
+        if (p.phase === 'boot') {
+          if (!bootAt) { clearInterval(dl); bootAt = performance.now(); globalThis.__kde.bootMs = Math.round(bootAt); step(1); bar(null); timer = setInterval(tick, 500); tick(); }
           $('status').textContent = p.boot?.program ? `Starting ${p.boot.program.split('/').pop()}` : 'Starting the session';
+        }
+        if (p.phase === 'failed') {
+          clearInterval(dl);
+          clearInterval(timer);
+          fail(`KDE Plasma could not start: ${(p.error ?? '').split('\n')[0]}`);
         }
         if (p.phase === 'ready') {
           clearInterval(timer);

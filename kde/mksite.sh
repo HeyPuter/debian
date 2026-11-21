@@ -1,10 +1,10 @@
 #!/bin/bash
-# The KDE demo's web site: gex's app library (an eject page build, from
-# gex's web/build-eject-page.sh) with kde/page/ (index.html), the session's tree
-# as one tar, and pack.json, which names every file served compressed
-# (FILE.zst) with its sizes.
+# The KDE demo's web site: gex's runtime package (@gexemu/runtime, from gex's
+# runtime/build.sh) at rt/, with kde/page/ (index.html and its loader,
+# kde.mjs), the session's tree as one tar, and pack.json, which names every
+# file served compressed (FILE.zst) with its sizes.
 #
-#   kde/mksite.sh EJECT_PAGE_DIR TREE.tar|TREE OUT   (ZSTD_LEVEL: default 12)
+#   kde/mksite.sh RUNTIME_PACKAGE_DIR TREE.tar|TREE OUT   (ZSTD_LEVEL: default 12)
 #
 # A TREE directory (an eject project's build/rootfs) is given the paths
 # kde/site-files.txt names from FULL (the tree the session was recorded
@@ -38,7 +38,7 @@
 # Serve OUT over https (mk/serve.mjs): the page needs cross-origin isolation.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-PAGE=$(realpath "${1:?EJECT_PAGE_DIR}"); TAR=$(realpath "${2:?TREE.tar}"); OUT=$(realpath -m "${3:?OUT}")
+RT=$(realpath "${1:?RUNTIME_PACKAGE_DIR}"); TAR=$(realpath "${2:?TREE.tar}"); OUT=$(realpath -m "${3:?OUT}")
 LEVEL=${ZSTD_LEVEL:-12}
 mkdir -p "$OUT"
 if [ -d "$TAR" ]; then
@@ -57,8 +57,9 @@ if [ -d "$TAR" ]; then
     (cd "$TAR" && tar --owner=0 --group=0 --numeric-owner --sort=name ${SOURCE_DATE_EPOCH:+--mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime} -cf "$OUT/kde.tar" $(ls -A))
     TAR=$OUT/kde.tar
 fi
-cp -a "$PAGE/." "$OUT/"
-# the landing page and its files (kde/page/)
+[ -f "$RT/index.mjs" ] || { echo "mksite: $RT is not a runtime package (gex's runtime/build.sh)" >&2; exit 1; }
+rm -rf "$OUT/rt"; cp -a "$RT" "$OUT/rt"
+# the landing page, its loader and their files (kde/page/)
 cp -a "$HERE/page/." "$OUT/"
 if [ -n "${UNITS:-}" ]; then
     rm -rf "$OUT/units"
@@ -135,14 +136,9 @@ site['lazy'] = 'lazy.json'
 json.dump(site, open(p, 'w'), indent=1)
 PY
 fi
-# the tree, and the runtime's large files, compressed
+# the tree, compressed (the runtime package's files are served as they are)
 zstd -q -f -T0 "-$LEVEL" --long=27 "$TAR" -o "$OUT/kde.tar.zst"
 packed=(kde.tar)
-for f in "$OUT"/gex/*.wasm; do
-    rel=${f#"$OUT"/}
-    zstd -q -f -T0 "-$LEVEL" "$f" -o "$f.zst"
-    packed+=("$rel")
-done
 # the rest bundle's file list, read before the session starts: packed too,
 # with its bytes' hash, which is how the page knows to fetch it so
 if [ -f "$OUT/lazy.json" ]; then

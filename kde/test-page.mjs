@@ -1,7 +1,7 @@
 // The KDE demo site in headless Chromium: serves SITE (COOP/COEP, on
 // 127.0.0.1), opens it, and follows the session until the desktop is up.
 //
-//   node kde/test-page.mjs SITE OUT        (GEX_SRC: a gex checkout, for web/test/cdp.mjs)
+//   node kde/test-page.mjs SITE OUT        (GEX_SRC: a gex checkout, for its test/lib/cdp.mjs)
 //
 // Prints the page's phase and the session's last log line every 30 s, a
 // screenshot of the compositor's output into OUT every KDE_SHOT seconds
@@ -26,7 +26,8 @@ import zlib from 'node:zlib';
 const SITE = resolve(process.argv[2]);
 const OUT = resolve(process.argv[3]);
 mkdirSync(OUT, { recursive: true });
-const { Cdp, browserWsUrl } = await import(join(process.env.GEX_SRC, 'web/test/cdp.mjs'));
+// (test/lib/cdp.mjs in a gex checkout; web/test/cdp.mjs in an older one)
+const { Cdp, browserWsUrl } = await import(['test/lib/cdp.mjs', 'web/test/cdp.mjs'].map((p) => join(process.env.GEX_SRC, p)).find((p) => existsSync(p)));
 const CHROME = process.env.CHROME || '/usr/bin/chromium';
 const WALL = Number(process.env.KDE_WALL || 1800) * 1000;
 const AFTER = Number(process.env.KDE_AFTER || 120) * 1000;
